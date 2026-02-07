@@ -1,0 +1,16 @@
+[Unit]
+Description=Mercure Hub
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/mercure/mercure run --config /opt/mercure/Caddyfile
+Restart=on-failure
+RestartSec=5
+
+Environment=MERCURE_PUBLISHER_JWT_KEY={{ mercure_jwt_secret }}
+Environment=MERCURE_SUBSCRIBER_JWT_KEY={{ mercure_jwt_secret }}
+Environment=SERVER_NAME=:{{ mercure_port }}
+
+[Install]
+WantedBy=multi-user.target

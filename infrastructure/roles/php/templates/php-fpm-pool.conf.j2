@@ -1,0 +1,18 @@
+[{{ project_name }}]
+user = {{ ansible_user }}
+group = {{ ansible_user }}
+listen = /run/php/php{{ php_version }}-fpm-{{ project_name }}.sock
+listen.owner = www-data
+listen.group = www-data
+listen.mode = 0660
+
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+
+chdir = {{ project_root }}/api/public
+
+env[MERCURE_JWT_SECRET] = {{ mercure_jwt_secret }}
+env[DATABASE_URL] = postgresql://{{ database_user }}:{{ database_password }}@localhost:5432/{{ database_name }}

@@ -1,0 +1,47 @@
+# Development configuration - proxies to dev servers
+
+# API - proxy to Symfony dev server
+server {
+    listen {{ nginx_api_port }};
+    server_name localhost;
+
+    location / {
+        proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+# Frontend - proxy to Angular dev server
+server {
+    listen {{ nginx_frontend_port }};
+    server_name localhost;
+
+    location / {
+        proxy_pass http://127.0.0.1:4201;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+
+# Mercure - proxy to Mercure hub
+server {
+    listen 3001;
+    server_name localhost;
+
+    location / {
+        proxy_pass http://127.0.0.1:{{ mercure_port }};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 24h;
+    }
+}

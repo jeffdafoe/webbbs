@@ -1,0 +1,31 @@
+# Shared variables across all environments
+
+# PHP
+php_version: "8.3"
+php_extensions:
+  - php{{ php_version }}-cli
+  - php{{ php_version }}-fpm
+  - php{{ php_version }}-pgsql
+  - php{{ php_version }}-intl
+  - php{{ php_version }}-mbstring
+  - php{{ php_version }}-xml
+  - php{{ php_version }}-curl
+  - php{{ php_version }}-zip
+
+# PostgreSQL
+postgresql_version: "15"
+
+# Node.js
+nodejs_version: "20"
+
+# Mercure
+mercure_version: "0.16.0"
+mercure_port: 3000
+
+# nginx
+nginx_api_port: 8000
+nginx_frontend_port: 4200
+
+# Project
+project_name: webbbs
+git_repository: "git@github.com:YOURUSERNAME/webbbs.git"

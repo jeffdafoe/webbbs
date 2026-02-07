@@ -1,0 +1,49 @@
+---
+- name: Create Mercure directory
+  file:
+    path: /opt/mercure
+    state: directory
+    mode: "0755"
+
+- name: Check if Mercure is installed
+  stat:
+    path: /opt/mercure/mercure
+  register: mercure_installed
+
+- name: Download Mercure
+  get_url:
+    url: "https://github.com/dunglas/mercure/releases/download/v{{ mercure_version }}/mercure_Linux_x86_64.tar.gz"
+    dest: /tmp/mercure.tar.gz
+  when: not mercure_installed.stat.exists
+
+- name: Extract Mercure
+  unarchive:
+    src: /tmp/mercure.tar.gz
+    dest: /opt/mercure
+    remote_src: yes
+  when: not mercure_installed.stat.exists
+
+- name: Remove Mercure archive
+  file:
+    path: /tmp/mercure.tar.gz
+    state: absent
+  when: not mercure_installed.stat.exists
+
+- name: Make Mercure executable
+  file:
+    path: /opt/mercure/mercure
+    mode: "0755"
+
+- name: Create Mercure systemd service
+  template:
+    src: mercure.service.j2
+    dest: /etc/systemd/system/mercure.service
+  notify:
+    - Reload systemd
+    - Restart Mercure
+
+- name: Enable and start Mercure service
+  service:
+    name: mercure
+    enabled: yes
+    state: started

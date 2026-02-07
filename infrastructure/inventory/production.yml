@@ -1,0 +1,14 @@
+all:
+  hosts:
+    vps:
+      ansible_host: YOUR_VPS_IP_HERE
+      ansible_user: YOUR_SSH_USER
+      ansible_ssh_private_key_file: ~/.ssh/id_rsa
+  vars:
+    environment: production
+    project_root: /var/www/webbbs
+    deploy_branch: release
+    database_name: webbbs
+    database_user: webbbs
+    database_password: "{{ lookup('env', 'WEBBBS_DB_PASSWORD') }}"
+    mercure_jwt_secret: "{{ lookup('env', 'MERCURE_JWT_SECRET') }}"

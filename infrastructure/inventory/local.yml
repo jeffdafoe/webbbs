@@ -1,0 +1,12 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: /usr/bin/python3
+  vars:
+    environment: development
+    project_root: /var/www/webbbs
+    database_name: webbbs
+    database_user: webbbs
+    database_password: "{{ lookup('env', 'WEBBBS_DB_PASSWORD') | default('webbbs_dev', true) }}"
+    mercure_jwt_secret: "{{ lookup('env', 'MERCURE_JWT_SECRET') | default('development_jwt_secret_change_in_production', true) }}"
