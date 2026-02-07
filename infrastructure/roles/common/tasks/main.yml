@@ -22,8 +22,8 @@
   file:
     path: "{{ project_root }}"
     state: directory
-    owner: "{{ ansible_user }}"
-    group: "{{ ansible_user }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
     mode: "0755"
 
 - name: Check if SSH key exists
@@ -46,4 +46,4 @@
 - name: Show SSH public key
   debug:
     msg: "Add this SSH key to GitHub: {{ ssh_public_key.stdout }}"
-  when: environment == 'development'
+  when: deploy_environment == 'development'

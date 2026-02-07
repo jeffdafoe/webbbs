@@ -1,0 +1,60 @@
+# Production configuration - serves static files and proxies API
+
+<VirtualHost *:80>
+    ServerName {{ server_name | default('_') }}
+    DocumentRoot {{ project_root }}/frontend/dist/frontend/browser
+
+    # Frontend - Angular static files
+    <Directory {{ project_root }}/frontend/dist/frontend/browser>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+
+        # SPA routing - fallback to index.html
+        RewriteEngine On
+        RewriteBase /
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /index.html [L]
+    </Directory>
+
+    # API - proxy to PHP-FPM
+    Alias /api {{ project_root }}/api/public
+
+    <Directory {{ project_root }}/api/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^(.*)$ index.php [QSA,L]
+    </Directory>
+
+    <FilesMatch \.php$>
+        SetHandler "proxy:unix:/run/php/php{{ php_version }}-fpm-{{ project_name }}.sock|fcgi://localhost"
+    </FilesMatch>
+
+    # Mercure hub
+    <Location /.well-known/mercure>
+        ProxyPreserveHost On
+        ProxyPass http://127.0.0.1:{{ mercure_port }}/.well-known/mercure
+        ProxyPassReverse http://127.0.0.1:{{ mercure_port }}/.well-known/mercure
+
+        # SSE/WebSocket support
+        RewriteEngine On
+        RewriteCond %{HTTP:Upgrade} =websocket [NC]
+        RewriteRule /.well-known/mercure(.*) ws://127.0.0.1:{{ mercure_port }}/.well-known/mercure$1 [P,L]
+
+        ProxyTimeout 86400
+    </Location>
+
+    # Security headers
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+
+    ErrorLog ${APACHE_LOG_DIR}/{{ project_name }}_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ project_name }}_access.log combined
+</VirtualHost>

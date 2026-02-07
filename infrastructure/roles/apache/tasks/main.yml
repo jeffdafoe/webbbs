@@ -1,0 +1,44 @@
+---
+- name: Install Apache
+  apt:
+    name: apache2
+    state: present
+
+- name: Enable required Apache modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - proxy
+    - proxy_http
+    - proxy_wstunnel
+    - proxy_fcgi
+    - rewrite
+    - headers
+    - ssl
+  notify: Restart Apache
+
+- name: Disable default Apache site
+  file:
+    path: /etc/apache2/sites-enabled/000-default.conf
+    state: absent
+  notify: Reload Apache
+
+- name: Create Apache site configuration
+  template:
+    src: "{{ 'site-development.conf.j2' if deploy_environment == 'development' else 'site-production.conf.j2' }}"
+    dest: "/etc/apache2/sites-available/{{ project_name }}.conf"
+  notify: Reload Apache
+
+- name: Enable Apache site
+  file:
+    src: "/etc/apache2/sites-available/{{ project_name }}.conf"
+    dest: "/etc/apache2/sites-enabled/{{ project_name }}.conf"
+    state: link
+  notify: Reload Apache
+
+- name: Ensure Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes

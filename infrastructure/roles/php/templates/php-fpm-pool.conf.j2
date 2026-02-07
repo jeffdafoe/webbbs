@@ -1,6 +1,6 @@
 [{{ project_name }}]
-user = {{ ansible_user }}
-group = {{ ansible_user }}
+user = {{ app_user }}
+group = {{ app_user }}
 listen = /run/php/php{{ php_version }}-fpm-{{ project_name }}.sock
 listen.owner = www-data
 listen.group = www-data

@@ -6,7 +6,7 @@
   tasks:
     - name: Display deployment info
       debug:
-        msg: "Deploying to {{ environment }} environment"
+        msg: "Deploying to {{ deploy_environment }} environment"
 
     - name: Pull latest code from release branch
       git:
@@ -14,41 +14,41 @@
         dest: "{{ project_root }}"
         version: "{{ deploy_branch | default('release') }}"
         force: yes
-      when: environment == 'production'
-      become_user: "{{ ansible_user }}"
+      when: deploy_environment == 'production'
+      become_user: "{{ app_user }}"
 
     - name: Install Composer dependencies
       composer:
         command: install
         working_dir: "{{ project_root }}/api"
-        no_dev: "{{ 'yes' if environment == 'production' else 'no' }}"
-        optimize_autoloader: "{{ 'yes' if environment == 'production' else 'no' }}"
-      become_user: "{{ ansible_user }}"
+        no_dev: "{{ 'yes' if deploy_environment == 'production' else 'no' }}"
+        optimize_autoloader: "{{ 'yes' if deploy_environment == 'production' else 'no' }}"
+      become_user: "{{ app_user }}"
 
     - name: Run database migrations
       command: php bin/console doctrine:migrations:migrate --no-interaction
       args:
         chdir: "{{ project_root }}/api"
-      become_user: "{{ ansible_user }}"
+      become_user: "{{ app_user }}"
 
     - name: Clear Symfony cache
       command: php bin/console cache:clear
       args:
         chdir: "{{ project_root }}/api"
-      become_user: "{{ ansible_user }}"
+      become_user: "{{ app_user }}"
 
     - name: Install npm dependencies
       npm:
         path: "{{ project_root }}/frontend"
         state: present
-      become_user: "{{ ansible_user }}"
+      become_user: "{{ app_user }}"
 
     - name: Build Angular for production
       command: ng build --configuration=production
       args:
         chdir: "{{ project_root }}/frontend"
-      when: environment == 'production'
-      become_user: "{{ ansible_user }}"
+      when: deploy_environment == 'production'
+      become_user: "{{ app_user }}"
 
     - name: Restart PHP-FPM
       service:
@@ -65,7 +65,7 @@
         msg: |
           Deployment complete!
 
-          Environment: {{ environment }}
+          Environment: {{ deploy_environment }}
           Branch: {{ deploy_branch | default('release') }}
 
           Services restarted:

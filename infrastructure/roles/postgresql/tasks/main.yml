@@ -4,15 +4,16 @@
     path: /usr/bin/psql
   register: postgresql_installed
 
-- name: Add PostgreSQL repository key
-  apt_key:
+- name: Download PostgreSQL repository key
+  get_url:
     url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
-    state: present
+    dest: /etc/apt/keyrings/postgresql.asc
+    mode: '0644'
   when: not postgresql_installed.stat.exists
 
 - name: Add PostgreSQL repository
   apt_repository:
-    repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    repo: "deb [signed-by=/etc/apt/keyrings/postgresql.asc] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
     state: present
     filename: postgresql
   when: not postgresql_installed.stat.exists
@@ -34,17 +35,11 @@
     enabled: yes
 
 - name: Create project database user
-  become: yes
-  become_user: postgres
-  postgresql_user:
-    name: "{{ database_user }}"
-    password: "{{ database_password }}"
-    state: present
+  shell: |
+    sudo -u postgres psql -c "CREATE USER {{ database_user }} WITH PASSWORD '{{ database_password }}';" || true
+  changed_when: false
 
 - name: Create project database
-  become: yes
-  become_user: postgres
-  postgresql_db:
-    name: "{{ database_name }}"
-    owner: "{{ database_user }}"
-    state: present
+  shell: |
+    sudo -u postgres psql -c "CREATE DATABASE {{ database_name }} OWNER {{ database_user }};" || true
+  changed_when: false

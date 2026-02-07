@@ -12,7 +12,7 @@
 
 - name: Create nginx site configuration
   template:
-    src: "{{ 'site-development.conf.j2' if environment == 'development' else 'site-production.conf.j2' }}"
+    src: "{{ 'site-development.conf.j2' if deploy_environment == 'development' else 'site-production.conf.j2' }}"
     dest: "/etc/nginx/sites-available/{{ project_name }}.conf"
   notify: Reload nginx
 

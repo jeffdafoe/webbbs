@@ -1,20 +1,22 @@
 ---
-- name: Set up WebBBS development/production environment
+- name: Set up WebBBS development/production deploy_environment
   hosts: all
   become: yes
+  vars_files:
+    - ../group_vars/all.yml
 
   pre_tasks:
-    - name: Display environment
+    - name: Display deploy_environment
       debug:
-        msg: "Setting up {{ environment }} environment on {{ inventory_hostname }}"
+        msg: "Setting up {{ deploy_environment }} deploy_environment on {{ inventory_hostname }}"
 
   roles:
-    - common
-    - php
-    - postgresql
-    - nodejs
-    - mercure
-    - nginx
+    - role: ../roles/common
+    - role: ../roles/php
+    - role: ../roles/postgresql
+    - role: ../roles/nodejs
+    - role: ../roles/mercure
+    - role: ../roles/apache
 
   post_tasks:
     - name: Display setup complete message
@@ -22,7 +24,7 @@
         msg: |
           Setup complete!
 
-          Environment: {{ environment }}
+          Environment: {{ deploy_environment }}
           Project root: {{ project_root }}
 
           PHP version: {{ php_version }}
@@ -33,7 +35,7 @@
           Database user: {{ database_user }}
 
           Next steps:
-          {% if environment == 'development' %}
+          {% if deploy_environment == 'development' %}
           1. Add SSH key to GitHub (shown above)
           2. Clone repository: git clone {{ git_repository }} {{ project_root }}
           3. Initialize Symfony: cd {{ project_root }} && symfony new api --webapp

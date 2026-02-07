@@ -4,15 +4,16 @@
     path: /usr/bin/node
   register: nodejs_installed
 
-- name: Add NodeSource repository key
-  apt_key:
+- name: Download NodeSource repository key
+  get_url:
     url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
-    state: present
+    dest: /etc/apt/keyrings/nodesource.asc
+    mode: '0644'
   when: not nodejs_installed.stat.exists
 
 - name: Add NodeSource repository
   apt_repository:
-    repo: "deb https://deb.nodesource.com/node_{{ nodejs_version }}.x nodistro main"
+    repo: "deb [signed-by=/etc/apt/keyrings/nodesource.asc] https://deb.nodesource.com/node_{{ nodejs_version }}.x nodistro main"
     state: present
     filename: nodesource
   when: not nodejs_installed.stat.exists

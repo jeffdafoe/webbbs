@@ -4,8 +4,9 @@ all:
       ansible_connection: local
       ansible_python_interpreter: /usr/bin/python3
   vars:
-    environment: development
+    deploy_environment: development
     project_root: /var/www/webbbs
+    app_user: jeff
     database_name: webbbs
     database_user: webbbs
     database_password: "{{ lookup('env', 'WEBBBS_DB_PASSWORD') | default('webbbs_dev', true) }}"
