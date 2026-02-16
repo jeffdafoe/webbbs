@@ -14,15 +14,33 @@ Add to `/etc/hosts`:
 
 The setup playbook will remind you if this is missing.
 
-## Initial Setup
+## First-Time Setup
 
-Clone the repo and run the setup playbook:
+1. Run the installer (setup + deploy):
 
 ```bash
-cd /path/to/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/setup.yml
+cd /path/to/zbbs
+sudo bash install.sh
 ```
 
-This installs and configures Apache, PHP-FPM, PostgreSQL, Node.js, and Mercure.
+You will be prompted for secrets (database password, JWT key passphrase, Mercure secret). Press Enter to accept defaults.
+
+2. Configure the BBS and create the sysop account:
+
+```bash
+source /etc/profile.d/zbbs.sh && cd /path/to/zbbs/api && php bin/console zbbs:setup
+```
+
+3. Open `http://zbbs.local/` in your browser.
+
+## Reinstalling
+
+To reinstall everything (re-prompts for secrets, reinstalls packages, redeploys):
+
+```bash
+cd /path/to/zbbs
+sudo bash reinstall.sh
+```
 
 ## Starting Services
 
@@ -31,39 +49,6 @@ Services are managed by systemd and should start on boot. If not:
 ```bash
 systemctl start postgresql && systemctl start php8.3-fpm && systemctl start apache2 && systemctl start mercure
 ```
-
-## First-Time Setup
-
-After the setup playbook has run and services are started:
-
-1. Install dependencies:
-
-```bash
-cd /path/to/zbbs/api && composer install
-cd /path/to/zbbs/clients/terminal && npm install
-cd /path/to/zbbs/clients/modern && npm install
-```
-
-2. Run migrations:
-
-```bash
-cd /path/to/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars 'run_migrations=true'
-```
-
-3. Configure the BBS and create the sysop account:
-
-```bash
-source /etc/profile.d/zbbs.sh && cd /path/to/zbbs/api && php bin/console zbbs:setup
-```
-
-4. Build the clients:
-
-```bash
-cd /path/to/zbbs/clients/terminal && node build.mjs
-cd /path/to/zbbs/clients/modern && npx ng build
-```
-
-5. Open `http://zbbs.local/` in your browser.
 
 ## Common Commands
 
@@ -79,16 +64,16 @@ Restart PHP-FPM:
 systemctl restart php8.3-fpm
 ```
 
+Build terminal client:
+
+```bash
+cd /path/to/zbbs/clients/terminal && node build.mjs
+```
+
 Build Angular client:
 
 ```bash
 cd /path/to/zbbs/clients/modern && ng build
-```
-
-Run setup playbook:
-
-```bash
-cd /path/to/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/setup.yml
 ```
 
 Run migrations:

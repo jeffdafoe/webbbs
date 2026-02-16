@@ -25,25 +25,3 @@
     owner: "{{ app_user }}"
     group: "{{ app_user }}"
     mode: "0755"
-
-- name: Check if SSH key exists
-  stat:
-    path: "~/.ssh/id_rsa"
-  register: ssh_key
-  become: no
-
-- name: Generate SSH key for GitHub (if not exists)
-  command: ssh-keygen -t rsa -b 4096 -f ~/.ssh/id_rsa -N ""
-  when: not ssh_key.stat.exists
-  become: no
-
-- name: Display SSH public key (for adding to GitHub)
-  command: cat ~/.ssh/id_rsa.pub
-  register: ssh_public_key
-  changed_when: false
-  become: no
-
-- name: Show SSH public key
-  debug:
-    msg: "Add this SSH key to GitHub: {{ ssh_public_key.stdout }}"
-  when: deploy_environment == 'development'

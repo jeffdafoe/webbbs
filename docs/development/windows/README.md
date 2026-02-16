@@ -57,50 +57,31 @@ After a reboot or `wsl --shutdown`, services need to be started:
 wsl -u root bash -c "systemctl start postgresql && systemctl start php8.3-fpm && systemctl start apache2 && systemctl start mercure"
 ```
 
-Or re-run the setup playbook which ensures everything is running:
-
-```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/setup.yml"
-```
-
 ## First-Time Setup
 
-After services are running, complete the initial setup:
-
-1. Run the Ansible setup playbook to install and configure everything:
+1. Run the installer (setup + deploy):
 
 ```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/setup.yml"
+wsl -u root bash -c "cd /mnt/c/dev/zbbs && bash install.sh"
 ```
 
-2. Install dependencies:
+You will be prompted for secrets (database password, JWT key passphrase, Mercure secret). Press Enter to accept defaults.
 
-```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/api && composer install"
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/terminal && npm install"
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/modern && npm install"
-```
-
-3. Run migrations:
-
-```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars 'run_migrations=true'"
-```
-
-4. Configure the BBS and create the sysop account:
+2. Configure the BBS and create the sysop account:
 
 ```bash
 wsl -u root bash -c "source /etc/profile.d/zbbs.sh && cd /mnt/c/dev/zbbs/api && php bin/console zbbs:setup"
 ```
 
-5. Build the clients:
+3. Open `http://zbbs.local/` in your browser.
+
+## Reinstalling
+
+To reinstall everything (re-prompts for secrets, reinstalls packages, redeploys):
 
 ```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/terminal && node build.mjs"
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/modern && npx ng build"
+wsl -u root bash -c "cd /mnt/c/dev/zbbs && bash reinstall.sh"
 ```
-
-6. Open `http://zbbs.local/` in your browser.
 
 ## Common Commands
 
@@ -118,22 +99,22 @@ Restart PHP-FPM:
 wsl -u root bash -c "systemctl restart php8.3-fpm"
 ```
 
+Build terminal client:
+
+```bash
+wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/terminal && node build.mjs"
+```
+
 Build Angular client:
 
 ```bash
 wsl -u root bash -c "cd /mnt/c/dev/zbbs/clients/modern && ng build"
 ```
 
-Run setup playbook:
-
-```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/setup.yml"
-```
-
 Run migrations:
 
 ```bash
-wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars 'run_migrations=true'"
+wsl -u root bash -c "cd /mnt/c/dev/zbbs/infrastructure && export ANSIBLE_CONFIG=/mnt/c/dev/zbbs/infrastructure/ansible.cfg && ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars 'run_migrations=true'"
 ```
 
 Connect to database:

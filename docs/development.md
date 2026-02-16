@@ -124,7 +124,9 @@ After template changes, re-run the setup playbook to deploy.
 
 ## Environment Variables
 
-Set in `/etc/profile.d/zbbs.sh`, deployed by the deploy playbook from `infrastructure/templates/zbbs-env.sh.j2`. PHP-FPM gets database and Mercure credentials from its pool config.
+Secrets are prompted on first Ansible run and saved to `infrastructure/local-secrets.yml` (gitignored). To re-prompt, run `reinstall.sh` or delete the file.
+
+The deploy playbook renders these into `/etc/profile.d/zbbs.sh` (from `infrastructure/templates/zbbs-env.sh.j2`). PHP-FPM gets the same values from its pool config (`roles/php/templates/php-fpm-pool.conf.j2`).
 
 ## Troubleshooting
 

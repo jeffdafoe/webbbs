@@ -6,6 +6,10 @@
     - ../group_vars/all.yml
 
   pre_tasks:
+    - name: Load secrets
+      include_tasks: ../tasks/load-secrets.yml
+      when: deploy_environment == 'development'
+
     - name: Display deploy_environment
       debug:
         msg: "Setting up {{ deploy_environment }} deploy_environment on {{ inventory_hostname }}"
@@ -16,7 +20,7 @@
     - role: ../roles/postgresql
     - role: ../roles/nodejs
     - role: ../roles/mercure
-    - role: ../roles/apache
+    - role: ../roles/nginx
 
   post_tasks:
     - name: Check hosts file for development entry
@@ -27,37 +31,37 @@
       when: deploy_environment == 'development'
 
     - name: Remind to add hosts file entry
-      debug:
-        msg: |
-          MANUAL STEP REQUIRED: Add this line to C:\Windows\System32\drivers\etc\hosts
-          (requires running notepad as Administrator):
-
-          127.0.0.1 {{ server_name }}
+      shell: |
+        echo ""
+        echo "  NOTE: Add this line to C:\Windows\System32\drivers\etc\hosts"
+        echo "  (requires running notepad as Administrator):"
+        echo ""
+        echo "  127.0.0.1 {{ server_name }}"
+        echo ""
       when: deploy_environment == 'development' and hosts_check.rc != 0
+      changed_when: false
 
     - name: Display setup complete message
-      debug:
-        msg: |
-          Setup complete!
-
-          Environment: {{ deploy_environment }}
-          Project root: {{ project_root }}
-          {% if deploy_environment == 'development' %}
-          Site: http://{{ server_name }}
-          {% endif %}
-
-          PHP version: {{ php_version }}
-          PostgreSQL version: {{ postgresql_version }}
-          Node.js version: {{ nodejs_version }}
-
-          Database: {{ database_name }}
-          Database user: {{ database_user }}
-
-          Next steps:
-          {% if deploy_environment == 'development' %}
-          1. Add SSH key to GitHub (shown above)
-          2. Clone repository: git clone {{ git_repository }} {{ project_root }}
-          3. Run deploy.yml to install dependencies and build
-          {% else %}
-          1. Run deploy.yml to pull code and build
-          {% endif %}
+      shell: |
+        echo ""
+        echo "==================================="
+        echo "  Setup complete!"
+        echo "==================================="
+        echo ""
+        echo "  Environment:  {{ deploy_environment }}"
+        echo "  Project root: {{ project_root }}"
+        {% if deploy_environment == 'development' %}
+        echo "  Site:         http://{{ server_name }}"
+        {% endif %}
+        echo ""
+        echo "  PHP:          {{ php_version }}"
+        echo "  PostgreSQL:   {{ postgresql_version }}"
+        echo "  Node.js:      {{ nodejs_version }}"
+        echo ""
+        echo "  Database:     {{ database_name }}"
+        echo "  DB user:      {{ database_user }}"
+        echo ""
+        echo "  Next step:"
+        echo "  Run deploy.yml to install dependencies and build"
+        echo ""
+      changed_when: false

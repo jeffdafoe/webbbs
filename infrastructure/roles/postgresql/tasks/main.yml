@@ -39,6 +39,12 @@
     sudo -u postgres psql -c "CREATE USER {{ database_user }} WITH PASSWORD '{{ database_password }}';" || true
   changed_when: false
 
+- name: Set database user password
+  shell: |
+    sudo -u postgres psql -c "ALTER USER {{ database_user }} WITH PASSWORD '{{ database_password }}';"
+  changed_when: false
+  no_log: true
+
 - name: Create project database
   shell: |
     sudo -u postgres psql -c "CREATE DATABASE {{ database_name }} OWNER {{ database_user }};" || true

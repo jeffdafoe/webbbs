@@ -5,6 +5,10 @@
   vars_files:
     - ../group_vars/all.yml
 
+  pre_tasks:
+    - name: Load secrets
+      include_tasks: ../tasks/load-secrets.yml
+
   tasks:
     - name: Ensure PostgreSQL is running
       service:
@@ -17,9 +21,9 @@
         dest: /etc/profile.d/zbbs.sh
         mode: '0644'
 
-    - name: Ensure Apache is running
+    - name: Ensure nginx is running
       service:
-        name: apache2
+        name: nginx
         state: started
 
     - name: Check if Symfony dev server is already running
@@ -69,8 +73,8 @@
         msg: |
           Development servers:
 
-          Symfony API:  http://localhost:{{ apache_api_port }}  (proxied from :8001)
-          Angular UI:   http://localhost:{{ apache_frontend_port }}  (proxied from :4201)
+          Symfony API:  http://{{ server_name }}/api
+          Angular UI:   http://{{ server_name }}/modern
           Mercure:      http://localhost:3001  (proxied from :{{ mercure_port }})
 
           Symfony direct:  http://localhost:8001

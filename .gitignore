@@ -21,6 +21,9 @@ api/.env.dev
 api/.env.local
 api/.env.*.local
 
+# Infrastructure secrets (prompted on first Ansible run)
+infrastructure/local-secrets.yml
+
 # System
 .DS_Store
 Thumbs.db

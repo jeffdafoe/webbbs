@@ -19,7 +19,7 @@ env[APP_SECRET] = {{ app_secret | default('change_me_in_production') }}
 env[DATABASE_URL] = "postgresql://{{ database_user }}:{{ database_password }}@localhost:5432/{{ database_name }}?serverVersion={{ postgresql_version }}&charset=utf8"
 env[JWT_SECRET_KEY] = {{ project_root }}/api/config/jwt/private.pem
 env[JWT_PUBLIC_KEY] = {{ project_root }}/api/config/jwt/public.pem
-env[JWT_PASSPHRASE] = {{ jwt_passphrase }}
+env[JWT_PASSPHRASE] = {{ jwt_key_passphrase }}
 env[MERCURE_URL] = http://localhost:{{ mercure_port }}/.well-known/mercure
 env[MERCURE_PUBLIC_URL] = http://localhost:{{ mercure_port }}/.well-known/mercure
 env[MERCURE_JWT_SECRET] = {{ mercure_jwt_secret }}

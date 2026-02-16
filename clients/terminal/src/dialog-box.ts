@@ -72,23 +72,23 @@ export class DialogBox {
         // Top border
         t.write(ansi.cursorTo(row, col));
         t.write(ansi.reset + color.bgBlue + color.fgLightCyan);
-        t.write('╔' + '═'.repeat(this.innerWidth) + '╗');
+        t.write('┌' + '─'.repeat(this.innerWidth) + '┐');
         this.drawShadowRight(row);
 
         row++;
         // Title row
         const titlePadded = this.centerText(this.title, this.innerWidth);
         t.write(ansi.cursorTo(row, col));
-        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '║');
-        t.write(color.fgWhite + titlePadded);
-        t.write(color.fgLightCyan + '║');
+        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '│');
+        t.write(color.fgYellow + titlePadded);
+        t.write(color.fgLightCyan + '│');
         this.drawShadowRight(row);
 
         row++;
         // Separator
         t.write(ansi.cursorTo(row, col));
         t.write(ansi.reset + color.bgBlue + color.fgLightCyan);
-        t.write('╠' + '═'.repeat(this.innerWidth) + '╣');
+        t.write('├' + '─'.repeat(this.innerWidth) + '┤');
         this.drawShadowRight(row);
 
         row++;
@@ -117,7 +117,7 @@ export class DialogBox {
         // Bottom border
         t.write(ansi.cursorTo(row, col));
         t.write(ansi.reset + color.bgBlue + color.fgLightCyan);
-        t.write('╚' + '═'.repeat(this.innerWidth) + '╝');
+        t.write('└' + '─'.repeat(this.innerWidth) + '┘');
         this.drawShadowRight(row);
 
         row++;
@@ -226,9 +226,9 @@ export class DialogBox {
 
         const padded = this.centerText(text, this.innerWidth);
         this.terminal.write(ansi.cursorTo(this.messageRow, this.startCol));
-        this.terminal.write(ansi.reset + color.bgBlue + color.fgLightCyan + '║');
+        this.terminal.write(ansi.reset + color.bgBlue + color.fgLightCyan + '│');
         this.terminal.write(fg + padded);
-        this.terminal.write(color.fgLightCyan + '║');
+        this.terminal.write(color.fgLightCyan + '│');
         this.terminal.write(ansi.reset);
     }
 
@@ -253,18 +253,18 @@ export class DialogBox {
         const inputContent = displayValue.padEnd(this.fieldInputWidth);
 
         t.write(ansi.cursorTo(row, col));
-        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '║');
+        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '│');
         t.write(color.fgWhite + '  ');
-        t.write(color.fgLightGray + labelPadded);
-        t.write(color.fgDarkGray + ': ');
-        t.write(ansi.reset + color.bgDarkGray + color.fgWhite + inputContent);
+        t.write(color.fgWhite + labelPadded);
+        t.write(color.fgWhite + ': ');
+        t.write(ansi.reset + color.bgDarkGray + color.fgLightCyan + inputContent);
         // Fill remaining space to right border
         const usedInner = 2 + this.maxLabelLength + 2 + this.fieldInputWidth;
         const remaining = this.innerWidth - usedInner;
         if (remaining > 0) {
             t.write(ansi.reset + color.bgBlue + ' '.repeat(remaining));
         }
-        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '║');
+        t.write(ansi.reset + color.bgBlue + color.fgLightCyan + '│');
         this.drawShadowRight(row);
     }
 
@@ -274,7 +274,7 @@ export class DialogBox {
 
         t.write(ansi.cursorTo(row, col));
         t.write(ansi.reset + color.bgBlue + color.fgLightCyan);
-        t.write('║' + ' '.repeat(this.innerWidth) + '║');
+        t.write('│' + ' '.repeat(this.innerWidth) + '│');
         this.drawShadowRight(row);
     }
 
@@ -296,7 +296,7 @@ export class DialogBox {
         const inputContent = displayValue.padEnd(this.fieldInputWidth);
 
         this.terminal.write(ansi.cursorTo(row, this.fieldInputCol));
-        this.terminal.write(ansi.reset + color.bgDarkGray + color.fgWhite + inputContent);
+        this.terminal.write(ansi.reset + color.bgDarkGray + color.fgLightCyan + inputContent);
         this.terminal.write(ansi.cursorTo(row, this.fieldInputCol + value.length));
     }
 

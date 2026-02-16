@@ -2,6 +2,13 @@
 - name: Deploy ZBBS application
   hosts: all
   become: yes
+  vars_files:
+    - ../group_vars/all.yml
+
+  pre_tasks:
+    - name: Load secrets
+      include_tasks: ../tasks/load-secrets.yml
+      when: deploy_environment == 'development'
 
   tasks:
     - name: Display deployment info
@@ -17,14 +24,6 @@
       when: deploy_environment == 'production'
       become_user: "{{ app_user }}"
 
-    - name: Install Composer dependencies
-      composer:
-        command: install
-        working_dir: "{{ project_root }}/api"
-        no_dev: "{{ 'yes' if deploy_environment == 'production' else 'no' }}"
-        optimize_autoloader: "{{ 'yes' if deploy_environment == 'production' else 'no' }}"
-      become_user: "{{ app_user }}"
-
     - name: Set up application environment variables
       template:
         src: ../templates/zbbs-env.sh.j2
@@ -36,23 +35,69 @@
         path: "{{ project_root }}/api/.env.local"
         state: absent
 
-    - name: Generate JWT keypair if not present
+    - name: Install Composer dependencies (this may take a few minutes)
+      shell: |
+        . /etc/profile.d/zbbs.sh && composer install --no-interaction {{ '--no-dev --optimize-autoloader' if deploy_environment == 'production' else '' }} 2>&1
+      args:
+        chdir: "{{ project_root }}/api"
+      become_user: "{{ app_user }}"
+      register: composer_output
+
+    - name: Composer output
+      shell: |
+        echo "{{ composer_output.stdout }}"
+      changed_when: false
+
+    - name: Check if JWT private key exists
+      stat:
+        path: "{{ project_root }}/api/config/jwt/private.pem"
+      register: jwt_private_key
+
+    - name: Verify JWT key matches current passphrase
+      command: >
+        openssl pkey -in {{ project_root }}/api/config/jwt/private.pem
+        -passin pass:{{ jwt_key_passphrase }} -noout
+      register: jwt_key_check
+      failed_when: false
+      changed_when: false
+      when: jwt_private_key.stat.exists
+      become_user: "{{ app_user }}"
+      no_log: true
+
+    - name: Remove JWT keys if passphrase has changed
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ project_root }}/api/config/jwt/private.pem"
+        - "{{ project_root }}/api/config/jwt/public.pem"
+      when: jwt_private_key.stat.exists and jwt_key_check.rc != 0
+
+    - name: Generate JWT keypair
       command: >
         openssl genpkey -out {{ project_root }}/api/config/jwt/private.pem
         -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
-        -pass pass:{{ jwt_passphrase }}
+        -pass pass:{{ jwt_key_passphrase }}
       args:
         creates: "{{ project_root }}/api/config/jwt/private.pem"
       become_user: "{{ app_user }}"
 
-    - name: Extract JWT public key if not present
+    - name: Extract JWT public key
       command: >
         openssl pkey -in {{ project_root }}/api/config/jwt/private.pem
         -out {{ project_root }}/api/config/jwt/public.pem
-        -pubout -passin pass:{{ jwt_passphrase }}
+        -pubout -passin pass:{{ jwt_key_passphrase }}
       args:
         creates: "{{ project_root }}/api/config/jwt/public.pem"
       become_user: "{{ app_user }}"
+
+    - name: Verify JWT key works with current passphrase
+      command: >
+        openssl pkey -in {{ project_root }}/api/config/jwt/private.pem
+        -passin pass:{{ jwt_key_passphrase }} -noout
+      changed_when: false
+      become_user: "{{ app_user }}"
+      no_log: true
 
     - name: Ensure JWT key directory permissions
       file:
@@ -82,24 +127,27 @@
         pending_migrations: "{{ migration_files.files | sort(attribute='path') | rejectattr('path', 'search', '(' + (applied_list | map('regex_escape') | join('|')) + ')') | list if applied_list | length > 0 else migration_files.files | sort(attribute='path') }}"
 
     - name: Display migration status
-      debug:
-        msg: |
-          Total migrations: {{ migration_files.files | length }}
-          Already applied: {{ applied_list | length }}
-          Pending: {{ pending_migrations | length }}
-          {% for m in pending_migrations %}
-          - {{ m.path | basename }}
-          {% endfor %}
+      shell: |
+        echo ""
+        echo "  Migrations: {{ migration_files.files | length }} total, {{ applied_list | length }} applied, {{ pending_migrations | length }} pending"
+        {% for m in pending_migrations %}
+        echo "    - {{ m.path | basename }}"
+        {% endfor %}
+        echo ""
+      changed_when: false
 
     - name: Run pending SQL migrations
       shell: |
         sudo -u postgres psql -d {{ database_name }} -f "{{ item.path }}" && \
         sudo -u postgres psql -d {{ database_name }} -c "INSERT INTO migrations_applied (migration_id) VALUES ('{{ item.path | basename | replace('_up.sql', '') }}');"
       loop: "{{ pending_migrations }}"
+      loop_control:
+        label: "{{ item.path | basename }}"
       when: run_migrations | default(false) | bool
 
-    - name: Clear Symfony cache
-      command: php bin/console cache:clear
+    - name: Clear Symfony cache (this may take a few minutes)
+      shell: |
+        . /etc/profile.d/zbbs.sh && php bin/console cache:clear
       args:
         chdir: "{{ project_root }}/api"
       become_user: "{{ app_user }}"
@@ -122,21 +170,19 @@
         name: "php{{ php_version }}-fpm"
         state: restarted
 
-    - name: Reload Apache
+    - name: Reload nginx
       service:
-        name: apache2
+        name: nginx
         state: reloaded
 
     - name: Display deployment complete message
-      debug:
-        msg: |
-          Deployment complete!
-
-          Environment: {{ deploy_environment }}
-          Branch: {{ deploy_branch | default('release') }}
-
-          Services restarted:
-          - PHP-FPM
-          - Apache
-
-          Note: SQL migrations run with --extra-vars "run_migrations=true"
+      shell: |
+        echo ""
+        echo "==================================="
+        echo "  Deploy complete!"
+        echo "==================================="
+        echo ""
+        echo "  Environment: {{ deploy_environment }}"
+        echo "  Branch:      {{ deploy_branch | default('release') }}"
+        echo ""
+      changed_when: false

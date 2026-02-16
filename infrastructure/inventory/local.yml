@@ -10,6 +10,3 @@ all:
     app_user: jeff
     database_name: zbbs
     database_user: zbbs
-    database_password: "{{ lookup('env', 'ZBBS_DB_PASSWORD') | default('zbbs_dev', true) }}"
-    mercure_jwt_secret: "{{ lookup('env', 'MERCURE_JWT_SECRET') | default('development_jwt_secret_change_in_production', true) }}"
-    jwt_passphrase: "{{ lookup('env', 'ZBBS_JWT_PASSPHRASE') | default('zbbs2026', true) }}"

@@ -20,26 +20,28 @@ Or manually:
 # Install git and ansible
 sudo apt update && sudo apt install -y git ansible
 
-# Clone and run setup
+# Clone the repo
 git clone https://github.com/jeffdafoe/zbbs.git /var/www/zbbs
-cd /var/www/zbbs/infrastructure
-sudo ansible-playbook -i inventory/local.yml playbooks/setup.yml
+cd /var/www/zbbs
 
-# Install dependencies
-cd /var/www/zbbs/api && composer install
-cd /var/www/zbbs/clients/terminal && npm install
-cd /var/www/zbbs/clients/modern && npm install
+# Run install (setup + deploy)
+sudo bash install.sh
+```
 
-# Run migrations and deploy
-cd /var/www/zbbs/infrastructure
-ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars 'run_migrations=true'
+On first run, you will be prompted for secrets (database password, JWT key passphrase, Mercure secret). Press Enter to accept the defaults or type a custom value.
 
-# Build clients
-cd /var/www/zbbs/clients/terminal && node build.mjs
-cd /var/www/zbbs/clients/modern && npx ng build
+After installation, configure the BBS and create the sysop account:
 
-# Configure the BBS (creates sysop account and initial settings)
+```bash
 source /etc/profile.d/zbbs.sh && cd /var/www/zbbs/api && php bin/console zbbs:setup
+```
+
+## Reinstalling
+
+To reinstall (re-prompts for secrets, reinstalls all packages, redeploys):
+
+```bash
+sudo bash reinstall.sh
 ```
 
 ## What Gets Installed
@@ -71,16 +73,22 @@ Everything is served through Apache on port 80 with path-based routing:
 ### Database
 - Database: `zbbs`
 - User: `zbbs`
-- Password configured in `infrastructure/inventory/local.yml` (defaults to `zbbs_dev` for development)
+- Password prompted on first run (saved to `infrastructure/local-secrets.yml`, gitignored)
+
+### Secrets
+
+All secrets are prompted on first Ansible run and saved to `infrastructure/local-secrets.yml` (gitignored, mode 0600). To re-prompt, run `reinstall.sh` or delete the file and re-run the playbook.
+
+Environment variables are deployed to `/etc/profile.d/zbbs.sh` and the PHP-FPM pool config.
 
 ### Mercure
 - Runs on localhost:3000, accessed only by the API server-side
-- JWT secret set via environment variable `MERCURE_JWT_SECRET`
+- JWT secret configured during install
 
 ## Production Deployment
 
 1. Edit `infrastructure/inventory/production.yml` with your server details
-2. Set environment variables for passwords (or update the inventory)
+2. Set environment variables: `ZBBS_DB_PASSWORD`, `ZBBS_JWT_PASSPHRASE`, `MERCURE_JWT_SECRET`
 3. Deploy:
    ```bash
    cd /var/www/zbbs/infrastructure

@@ -13,4 +13,4 @@ all:
     database_user: zbbs
     database_password: "{{ lookup('env', 'ZBBS_DB_PASSWORD') }}"
     mercure_jwt_secret: "{{ lookup('env', 'MERCURE_JWT_SECRET') }}"
-    jwt_passphrase: "{{ lookup('env', 'ZBBS_JWT_PASSPHRASE') }}"
+    jwt_key_passphrase: "{{ lookup('env', 'ZBBS_JWT_PASSPHRASE') }}"

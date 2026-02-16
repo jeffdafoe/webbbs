@@ -1,0 +1,52 @@
+server {
+    listen 80;
+    server_name {{ server_name }};
+
+{% block extra_headers %}
+{% endblock %}
+
+    # Landing page (root)
+    root {{ project_root }}/clients/landing;
+    index index.html;
+
+    location = / {
+        index index.html;
+    }
+
+    # API (Symfony via PHP-FPM) - route everything to index.php
+    location /api/ {
+        fastcgi_pass unix:/run/php/php{{ php_version }}-fpm-{{ project_name }}.sock;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME {{ project_root }}/api/public/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        fastcgi_param DOCUMENT_ROOT {{ project_root }}/api/public;
+    }
+
+    location = /api {
+        return 301 /api/;
+    }
+
+    # Modern client (Angular SPA)
+    location /modern/ {
+        alias {{ project_root }}/clients/modern/dist/modern/browser/;
+        try_files $uri $uri/ /modern/index.html;
+    }
+
+    location = /modern {
+        return 301 /modern/;
+    }
+
+    # Terminal client (static files)
+    location /terminal/ {
+        alias {{ project_root }}/clients/terminal/dist/;
+        index index.html;
+        try_files $uri $uri/ =404;
+    }
+
+    location = /terminal {
+        return 301 /terminal/;
+    }
+
+{% block logging %}
+{% endblock %}
+}

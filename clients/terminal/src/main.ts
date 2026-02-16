@@ -51,7 +51,7 @@ const terminal = new Terminal({
     theme: {
         background: '#0a0a1a',
         foreground: '#c0c0c0',
-        cursor: '#e94560',
+        cursor: '#f8f8f2',
         cursorAccent: '#0a0a1a',
         red: '#e94560',
         green: '#50fa7b',
