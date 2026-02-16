@@ -1,0 +1,5 @@
+; OPcache tuning for development on WSL2 /mnt/c/ filesystem
+; Disables timestamp validation to avoid slow cross-filesystem stat calls
+; Restart PHP-FPM after PHP code changes to pick up new files
+opcache.validate_timestamps=0
+opcache.revalidate_freq=0

@@ -74,3 +74,17 @@
     src: php-fpm-pool.conf.j2
     dest: "/etc/php/{{ php_version }}/fpm/pool.d/{{ project_name }}.conf"
   notify: Restart PHP-FPM
+
+- name: Deploy OPcache dev config for WSL2 filesystem performance
+  template:
+    src: opcache-dev.ini.j2
+    dest: "/etc/php/{{ php_version }}/fpm/conf.d/99-zbbs-dev.ini"
+  when: deploy_environment == 'development'
+  notify: Restart PHP-FPM
+
+- name: Remove OPcache dev config in non-development environments
+  file:
+    path: "/etc/php/{{ php_version }}/fpm/conf.d/99-zbbs-dev.ini"
+    state: absent
+  when: deploy_environment != 'development'
+  notify: Restart PHP-FPM
