@@ -1,6 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 import { TerminalIO, MenuItem } from './terminal-io';
 import { WidgetPosition, WidgetItem } from './template-renderer';
+import { ansi } from './ansi';
 
 export type RouteHandler = () => Promise<string | null>;
 
@@ -55,6 +56,11 @@ export class ScreenRunner {
             return handler();
         }
 
-        return choice;
+        // No handler registered — show error at bottom, stays until screen redraws
+        const message = 'Not yet implemented';
+        const col = Math.floor((80 - message.length) / 2) + 1;
+        this.terminal.write(ansi.cursorTo(24, col) + ansi.red + message + ansi.reset + ansi.hideCursor);
+
+        return 'noop';
     }
 }

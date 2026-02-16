@@ -130,18 +130,6 @@ routes.set('disconnect', async () => {
     return 'screen:welcome';
 });
 
-routes.set('profile', async () => {
-    io.info('  Edit Profile - coming soon');
-    await io.pause();
-    return null;
-});
-
-routes.set('who', async () => {
-    io.info('  Who Is Online - coming soon');
-    await io.pause();
-    return null;
-});
-
 routes.set('users', async () => {
     const userManagement = new UserManagement(terminal, apiClient);
     await userManagement.run();
@@ -231,18 +219,27 @@ async function start(): Promise<void> {
         outer.style.background = settings.terminal_border_color;
     }
 
+    let needsRedraw = true;
+    let lastResult: ReturnType<typeof renderHome> | null = null;
+
     while (true) {
-        let result;
-        if (currentScreen === 'home') {
-            result = renderHome();
-        } else {
-            result = renderWelcome();
+        if (needsRedraw) {
+            if (currentScreen === 'home') {
+                lastResult = renderHome();
+            } else {
+                lastResult = renderWelcome();
+            }
         }
 
-        const action = await screenRunner.run(result.widgets);
+        const action = await screenRunner.run(lastResult!.widgets);
 
-        if (action && action.startsWith('screen:')) {
+        if (action === 'noop') {
+            needsRedraw = false;
+        } else if (action && action.startsWith('screen:')) {
             currentScreen = action.substring(7);
+            needsRedraw = true;
+        } else {
+            needsRedraw = true;
         }
     }
 }
