@@ -69,12 +69,6 @@ export class DialogBox {
         const col = this.startCol;
         let row = this.startRow;
 
-        // Clear the area behind the dialog so template borders don't bleed through
-        for (let r = this.startRow; r < this.startRow + this.totalHeight + 1; r++) {
-            t.write(ansi.cursorTo(r, 1));
-            t.write(ansi.reset + ' '.repeat(80));
-        }
-
         // Top border
         t.write(ansi.cursorTo(row, col));
         t.write(ansi.reset + color.bgBlue + color.fgLightCyan);
