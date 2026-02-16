@@ -1,5 +1,5 @@
 ---
-- name: Set up WebBBS development/production deploy_environment
+- name: Set up ZBBS development/production deploy_environment
   hosts: all
   become: yes
   vars_files:
@@ -19,6 +19,22 @@
     - role: ../roles/apache
 
   post_tasks:
+    - name: Check hosts file for development entry
+      shell: grep -q "{{ server_name }}" /mnt/c/Windows/System32/drivers/etc/hosts
+      register: hosts_check
+      changed_when: false
+      failed_when: false
+      when: deploy_environment == 'development'
+
+    - name: Remind to add hosts file entry
+      debug:
+        msg: |
+          MANUAL STEP REQUIRED: Add this line to C:\Windows\System32\drivers\etc\hosts
+          (requires running notepad as Administrator):
+
+          127.0.0.1 {{ server_name }}
+      when: deploy_environment == 'development' and hosts_check.rc != 0
+
     - name: Display setup complete message
       debug:
         msg: |
@@ -26,6 +42,9 @@
 
           Environment: {{ deploy_environment }}
           Project root: {{ project_root }}
+          {% if deploy_environment == 'development' %}
+          Site: http://{{ server_name }}
+          {% endif %}
 
           PHP version: {{ php_version }}
           PostgreSQL version: {{ postgresql_version }}
@@ -38,11 +57,7 @@
           {% if deploy_environment == 'development' %}
           1. Add SSH key to GitHub (shown above)
           2. Clone repository: git clone {{ git_repository }} {{ project_root }}
-          3. Initialize Symfony: cd {{ project_root }} && symfony new api --webapp
-          4. Initialize Angular: cd {{ project_root }} && ng new frontend --routing --style=scss --standalone
-          5. Start dev servers:
-             - Symfony: cd {{ project_root }}/api && symfony server:start --port=8001
-             - Angular: cd {{ project_root }}/frontend && ng serve --port=4201
+          3. Run deploy.yml to install dependencies and build
           {% else %}
           1. Run deploy.yml to pull code and build
           {% endif %}

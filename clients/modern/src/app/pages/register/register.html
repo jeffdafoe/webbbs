@@ -1,0 +1,47 @@
+<div class="auth-container">
+    <div class="auth-box">
+        <h1>ZBBS</h1>
+        <h2>New User Registration</h2>
+        <form (ngSubmit)="onSubmit()">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input
+                    id="username"
+                    type="text"
+                    [ngModel]="username()"
+                    (ngModelChange)="username.set($event)"
+                    name="username"
+                    autocomplete="username"
+                    required
+                />
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input
+                    id="password"
+                    type="password"
+                    [ngModel]="password()"
+                    (ngModelChange)="password.set($event)"
+                    name="password"
+                    autocomplete="new-password"
+                    required
+                />
+            </div>
+            <div class="form-group">
+                <label for="email">Email (optional)</label>
+                <input
+                    id="email"
+                    type="email"
+                    [ngModel]="email()"
+                    (ngModelChange)="email.set($event)"
+                    name="email"
+                    autocomplete="email"
+                />
+            </div>
+            <button type="submit">Register</button>
+        </form>
+        <p class="auth-link">
+            Already have an account? <a routerLink="/login">Login</a>
+        </p>
+    </div>
+</div>

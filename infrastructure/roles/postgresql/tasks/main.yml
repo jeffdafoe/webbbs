@@ -43,3 +43,13 @@
   shell: |
     sudo -u postgres psql -c "CREATE DATABASE {{ database_name }} OWNER {{ database_user }};" || true
   changed_when: false
+
+- name: Create migrations tracking table
+  shell: |
+    sudo -u postgres psql -d {{ database_name }} -c "
+      CREATE TABLE IF NOT EXISTS migrations_applied (
+        migration_id VARCHAR(50) PRIMARY KEY,
+        applied_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW()
+      );
+    "
+  changed_when: false

@@ -1,0 +1,56 @@
+<VirtualHost *:80>
+    ServerName {{ server_name }}
+
+{% block extra_headers %}
+{% endblock %}
+
+    # Landing page (root)
+    DocumentRoot {{ project_root }}/clients/landing
+    <Directory {{ project_root }}/clients/landing>
+        Options -Indexes
+        Require all granted
+    </Directory>
+
+    # API (Symfony via PHP-FPM)
+    Alias /api {{ project_root }}/api/public
+    <Directory {{ project_root }}/api/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+
+        RewriteEngine On
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteRule ^(.*)$ index.php [QSA,L]
+
+        <FilesMatch \.php$>
+            SetHandler "proxy:unix:/run/php/php{{ php_version }}-fpm-{{ project_name }}.sock|fcgi://localhost"
+            ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "{{ project_root }}/api/public/index.php"
+            ProxyFCGISetEnvIf "true" SCRIPT_NAME "/index.php"
+        </FilesMatch>
+    </Directory>
+
+    # Modern client (Angular SPA)
+    Alias /modern {{ project_root }}/clients/modern/dist/modern/browser
+    <Directory {{ project_root }}/clients/modern/dist/modern/browser>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+
+        RewriteEngine On
+        RewriteBase /modern/
+        RewriteRule ^index\.html$ - [L]
+        RewriteCond %{REQUEST_FILENAME} !-f
+        RewriteCond %{REQUEST_FILENAME} !-d
+        RewriteRule . /modern/index.html [L]
+    </Directory>
+
+    # Terminal client (static files)
+    Alias /terminal {{ project_root }}/clients/terminal/dist
+    <Directory {{ project_root }}/clients/terminal/dist>
+        Options -Indexes
+        Require all granted
+    </Directory>
+
+{% block logging %}
+{% endblock %}
+</VirtualHost>

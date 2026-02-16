@@ -1,0 +1,77 @@
+---
+- name: Start ZBBS development servers
+  hosts: all
+  become: yes
+  vars_files:
+    - ../group_vars/all.yml
+
+  tasks:
+    - name: Ensure PostgreSQL is running
+      service:
+        name: postgresql
+        state: started
+
+    - name: Deploy application environment variables
+      template:
+        src: ../templates/zbbs-env.sh.j2
+        dest: /etc/profile.d/zbbs.sh
+        mode: '0644'
+
+    - name: Ensure Apache is running
+      service:
+        name: apache2
+        state: started
+
+    - name: Check if Symfony dev server is already running
+      shell: pgrep -f "symfony server:start" || true
+      register: symfony_running
+      changed_when: false
+
+    - name: Start Symfony dev server
+      shell: |
+        . /etc/profile.d/zbbs.sh && cd {{ project_root }}/api && nohup symfony server:start --port=8001 --no-tls --daemon > /dev/null 2>&1
+      become_user: "{{ app_user }}"
+      when: symfony_running.stdout == ""
+
+    - name: Check if Angular dev server is already running
+      shell: pgrep -f "ng serve" || true
+      register: angular_running
+      changed_when: false
+
+    - name: Start Angular dev server
+      shell: |
+        . /etc/profile.d/zbbs.sh && cd {{ project_root }}/clients/modern && nohup npx ng serve --port=4201 --host=0.0.0.0 --proxy-config proxy.conf.json > /tmp/angular-dev.log 2>&1 &
+      become_user: "{{ app_user }}"
+      when: angular_running.stdout == ""
+
+    - name: Wait for Symfony to be ready
+      uri:
+        url: "http://localhost:8001"
+        status_code: [200, 404, 500]
+      register: symfony_result
+      until: symfony_result is not failed
+      retries: 10
+      delay: 2
+      ignore_errors: yes
+
+    - name: Wait for Angular to be ready
+      uri:
+        url: "http://localhost:4201"
+        status_code: [200]
+      register: angular_result
+      until: angular_result is not failed
+      retries: 15
+      delay: 3
+      ignore_errors: yes
+
+    - name: Display dev server status
+      debug:
+        msg: |
+          Development servers:
+
+          Symfony API:  http://localhost:{{ apache_api_port }}  (proxied from :8001)
+          Angular UI:   http://localhost:{{ apache_frontend_port }}  (proxied from :4201)
+          Mercure:      http://localhost:3001  (proxied from :{{ mercure_port }})
+
+          Symfony direct:  http://localhost:8001
+          Angular direct:  http://localhost:4201

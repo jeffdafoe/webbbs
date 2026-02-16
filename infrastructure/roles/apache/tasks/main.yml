@@ -9,9 +9,6 @@
     name: "{{ item }}"
     state: present
   loop:
-    - proxy
-    - proxy_http
-    - proxy_wstunnel
     - proxy_fcgi
     - rewrite
     - headers

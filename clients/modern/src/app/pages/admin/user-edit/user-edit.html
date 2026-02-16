@@ -1,0 +1,171 @@
+<app-layout>
+    <h2>Edit User: {{ username() }}</h2>
+
+    @if (loading()) {
+        <p class="status-message">Loading...</p>
+    }
+
+    @if (error()) {
+        <div class="message error">{{ error() }}</div>
+    }
+
+    @if (successMessage()) {
+        <div class="message success">{{ successMessage() }}</div>
+    }
+
+    @if (!loading()) {
+        <form (ngSubmit)="onSave()">
+            <fieldset>
+                <legend>Account</legend>
+
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input
+                        id="username"
+                        type="text"
+                        [ngModel]="username()"
+                        name="username"
+                        disabled
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input
+                        id="email"
+                        type="email"
+                        [ngModel]="email()"
+                        (ngModelChange)="email.set($event)"
+                        name="email"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">New Password (leave blank to keep current)</label>
+                    <input
+                        id="password"
+                        type="password"
+                        [ngModel]="password()"
+                        (ngModelChange)="password.set($event)"
+                        name="password"
+                        autocomplete="new-password"
+                    />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="role">Role</label>
+                        <select
+                            id="role"
+                            [ngModel]="role()"
+                            (ngModelChange)="role.set($event)"
+                            name="role"
+                        >
+                            <option value="ROLE_USER">User</option>
+                            <option value="ROLE_MEMBER">Member</option>
+                            <option value="ROLE_MODERATOR">Moderator</option>
+                            <option value="ROLE_SYSOP">Sysop</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="isActive">Status</label>
+                        <select
+                            id="isActive"
+                            [ngModel]="isActive()"
+                            (ngModelChange)="isActive.set($event === 'true')"
+                            name="isActive"
+                        >
+                            <option [value]="true">Active</option>
+                            <option [value]="false">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+            </fieldset>
+
+            <fieldset>
+                <legend>Profile</legend>
+
+                <div class="form-group">
+                    <label for="alias">Display Name / Alias</label>
+                    <input
+                        id="alias"
+                        type="text"
+                        [ngModel]="alias()"
+                        (ngModelChange)="alias.set($event)"
+                        name="alias"
+                        maxlength="35"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="bio">Bio</label>
+                    <textarea
+                        id="bio"
+                        [ngModel]="bio()"
+                        (ngModelChange)="bio.set($event)"
+                        name="bio"
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="entryMessage">Entry Message</label>
+                        <input
+                            id="entryMessage"
+                            type="text"
+                            [ngModel]="entryMessage()"
+                            (ngModelChange)="entryMessage.set($event)"
+                            name="entryMessage"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="exitMessage">Exit Message</label>
+                        <input
+                            id="exitMessage"
+                            type="text"
+                            [ngModel]="exitMessage()"
+                            (ngModelChange)="exitMessage.set($event)"
+                            name="exitMessage"
+                        />
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="preferredColor">Color Code</label>
+                        <input
+                            id="preferredColor"
+                            type="text"
+                            [ngModel]="preferredColor()"
+                            (ngModelChange)="preferredColor.set($event)"
+                            name="preferredColor"
+                            maxlength="1"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="timezone">Timezone</label>
+                        <input
+                            id="timezone"
+                            type="text"
+                            [ngModel]="timezone()"
+                            (ngModelChange)="timezone.set($event)"
+                            name="timezone"
+                            placeholder="America/New_York"
+                        />
+                    </div>
+                </div>
+            </fieldset>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save" [disabled]="saving()">
+                    {{ saving() ? 'Saving...' : 'Save Changes' }}
+                </button>
+                <button type="button" class="btn-delete" (click)="onDelete()">Delete User</button>
+            </div>
+        </form>
+    }
+</app-layout>

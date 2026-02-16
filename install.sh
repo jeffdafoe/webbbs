@@ -2,7 +2,7 @@
 set -e
 
 echo "==================================="
-echo "  WebBBS Installer"
+echo "  ZBBS Installer"
 echo "==================================="
 echo
 
@@ -28,26 +28,26 @@ apt update
 apt install -y git ansible curl
 
 # Clone repository
-echo "[2/5] Cloning WebBBS repository..."
-if [ -d "/var/www/webbbs" ]; then
-    echo "Directory /var/www/webbbs already exists. Pulling latest..."
-    cd /var/www/webbbs
+echo "[2/5] Cloning ZBBS repository..."
+if [ -d "/var/www/zbbs" ]; then
+    echo "Directory /var/www/zbbs already exists. Pulling latest..."
+    cd /var/www/zbbs
     git pull
 else
-    git clone https://github.com/jeffdafoe/webbbs.git /var/www/webbbs
+    git clone https://github.com/jeffdafoe/zbbs.git /var/www/zbbs
 fi
 
 # Set ownership
-chown -R "$ACTUAL_USER:$ACTUAL_USER" /var/www/webbbs
+chown -R "$ACTUAL_USER:$ACTUAL_USER" /var/www/zbbs
 
 # Run Ansible playbook
 echo "[3/5] Running Ansible setup (this may take a few minutes)..."
-cd /var/www/webbbs/infrastructure
+cd /var/www/zbbs/infrastructure
 ansible-playbook -i inventory/local.yml playbooks/setup.yml
 
 # Initialize Symfony (if not already done)
 echo "[4/5] Initializing Symfony project..."
-cd /var/www/webbbs
+cd /var/www/zbbs
 if [ ! -d "api/vendor" ]; then
     sudo -u "$ACTUAL_USER" symfony new api --webapp
     cd api
@@ -59,14 +59,14 @@ fi
 
 # Initialize Angular (if not already done)
 echo "[5/5] Initializing Angular project..."
-if [ ! -d "frontend/node_modules" ]; then
-    sudo -u "$ACTUAL_USER" ng new frontend --routing --style=scss --standalone --skip-git
+if [ ! -d "clients/modern/node_modules" ]; then
+    sudo -u "$ACTUAL_USER" ng new clients/modern --routing --style=scss --standalone --skip-git
 else
     echo "Angular project already exists, skipping..."
 fi
 
 # Set final ownership
-chown -R "$ACTUAL_USER:$ACTUAL_USER" /var/www/webbbs
+chown -R "$ACTUAL_USER:$ACTUAL_USER" /var/www/zbbs
 
 echo
 echo "==================================="
@@ -76,11 +76,11 @@ echo
 echo "To start development:"
 echo
 echo "  Terminal 1 (API):"
-echo "    cd /var/www/webbbs/api"
+echo "    cd /var/www/zbbs/api"
 echo "    symfony server:start --port=8001"
 echo
 echo "  Terminal 2 (Frontend):"
-echo "    cd /var/www/webbbs/frontend"
+echo "    cd /var/www/zbbs/clients/modern"
 echo "    ng serve --port=4201"
 echo
 echo "Access:"

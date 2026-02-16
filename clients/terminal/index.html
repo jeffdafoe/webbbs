@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZBBS Terminal</title>
+    <style>
+        @font-face {
+            font-family: 'ZBBS VGA';
+            src: url('fonts/ZBBS_VGA.woff') format('woff');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @font-face {
+            font-family: 'ZBBS VGA';
+            src: url('fonts/ZBBS_VGA.woff') format('woff');
+            font-weight: bold;
+            font-style: normal;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        #terminal-outer { padding: 3px; background: #000; display: inline-flex; }
+        #terminal-frame { display: inline-block; line-height: 0; background: #0a0a1a; }
+        #terminal { background: #0a0a1a; }
+        .xterm .xterm-viewport { overflow-y: hidden !important; scrollbar-width: none !important; }
+        .xterm .xterm-viewport::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+        .xterm-helper-textarea { position: absolute !important; opacity: 0 !important; left: -9999px !important; }
+        .xterm-char-measure-element { visibility: hidden !important; }
+        .xterm-rows span { letter-spacing: 0px !important; }
+    </style>
+</head>
+<body>
+    <div id="terminal-outer"><div id="terminal-frame"><div id="terminal"></div></div></div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

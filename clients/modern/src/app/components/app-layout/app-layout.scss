@@ -1,0 +1,59 @@
+.app-container {
+    min-height: 100vh;
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background: #16213e;
+    border-bottom: 1px solid #0f3460;
+}
+
+.logo {
+    color: #e94560;
+    font-family: 'Courier New', monospace;
+    font-size: 1.5rem;
+    font-weight: bold;
+    text-decoration: none;
+
+    &:hover {
+        color: #ff6b81;
+    }
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.user-info {
+    color: #a0a0b0;
+    font-size: 0.875rem;
+    font-family: 'Courier New', monospace;
+}
+
+.logout-button {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #e94560;
+    border-radius: 4px;
+    color: #e94560;
+    cursor: pointer;
+    font-size: 0.875rem;
+
+    &:hover {
+        background: #e94560;
+        color: #fff;
+    }
+}
+
+main {
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}

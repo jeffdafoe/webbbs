@@ -1,0 +1,26 @@
+# IDE
+.idea/
+.vscode/
+*.sublime-workspace
+
+# Claude / AI tooling
+.ai/
+.claude/
+CLAUDE.md
+
+# Node
+node_modules/
+
+# Build output
+clients/terminal/dist/
+clients/terminal/test-results/
+clients/modern/dist/
+
+# Environment overrides (may contain secrets)
+api/.env.dev
+api/.env.local
+api/.env.*.local
+
+# System
+.DS_Store
+Thumbs.db

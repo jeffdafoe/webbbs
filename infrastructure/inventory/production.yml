@@ -6,9 +6,11 @@ all:
       ansible_ssh_private_key_file: ~/.ssh/id_rsa
   vars:
     deploy_environment: production
-    project_root: /var/www/webbbs
+    project_root: /var/www/zbbs
+    server_name: zbbs.example.com
     deploy_branch: release
-    database_name: webbbs
-    database_user: webbbs
-    database_password: "{{ lookup('env', 'WEBBBS_DB_PASSWORD') }}"
+    database_name: zbbs
+    database_user: zbbs
+    database_password: "{{ lookup('env', 'ZBBS_DB_PASSWORD') }}"
     mercure_jwt_secret: "{{ lookup('env', 'MERCURE_JWT_SECRET') }}"
+    jwt_passphrase: "{{ lookup('env', 'ZBBS_JWT_PASSPHRASE') }}"

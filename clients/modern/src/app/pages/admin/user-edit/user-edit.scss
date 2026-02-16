@@ -1,0 +1,131 @@
+h2 {
+    color: #e0e0e0;
+    font-size: 1.25rem;
+    margin: 0 0 1.5rem;
+}
+
+.status-message {
+    color: #a0a0b0;
+    text-align: center;
+    padding: 2rem;
+}
+
+.message {
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+
+    &.error {
+        background: rgba(233, 69, 96, 0.15);
+        border: 1px solid #e94560;
+        color: #e94560;
+    }
+
+    &.success {
+        background: rgba(80, 250, 123, 0.15);
+        border: 1px solid #50fa7b;
+        color: #50fa7b;
+    }
+}
+
+fieldset {
+    border: 1px solid #0f3460;
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+
+    legend {
+        color: #e94560;
+        font-size: 0.875rem;
+        font-weight: bold;
+        padding: 0 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05rem;
+    }
+}
+
+.form-group {
+    margin-bottom: 1rem;
+
+    label {
+        display: block;
+        color: #a0a0b0;
+        font-size: 0.8rem;
+        margin-bottom: 0.25rem;
+    }
+
+    input, select, textarea {
+        width: 100%;
+        padding: 0.5rem;
+        background: #0f3460;
+        border: 1px solid #1a1a4e;
+        border-radius: 4px;
+        color: #e0e0e0;
+        font-size: 0.875rem;
+        font-family: inherit;
+        box-sizing: border-box;
+
+        &:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    textarea {
+        resize: vertical;
+    }
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+
+    .form-group {
+        flex: 1;
+    }
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.btn-save {
+    padding: 0.75rem 1.5rem;
+    background: #e94560;
+    border: none;
+    border-radius: 4px;
+    color: #fff;
+    font-size: 0.875rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+        background: #c73652;
+    }
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+}
+
+.btn-delete {
+    padding: 0.75rem 1.5rem;
+    background: transparent;
+    border: 1px solid #ff5555;
+    border-radius: 4px;
+    color: #ff5555;
+    font-size: 0.875rem;
+    cursor: pointer;
+
+    &:hover {
+        background: rgba(255, 85, 85, 0.15);
+    }
+}

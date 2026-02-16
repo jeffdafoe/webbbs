@@ -1,0 +1,12 @@
+<div class="app-container">
+    <header>
+        <a routerLink="/home" class="logo">{{ settingsService.bbsName }}</a>
+        <div class="header-right">
+            <span class="user-info">{{ authService.userInfo()?.username }}</span>
+            <button class="logout-button" (click)="logout()">Logout</button>
+        </div>
+    </header>
+    <main>
+        <ng-content />
+    </main>
+</div>

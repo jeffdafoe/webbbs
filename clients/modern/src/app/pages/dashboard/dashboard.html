@@ -1,0 +1,17 @@
+<app-layout>
+    <div class="menu-section">
+        <h2>Main</h2>
+        <nav class="menu">
+            <a routerLink="/home" class="menu-item">Home</a>
+        </nav>
+    </div>
+
+    @if (authService.isSysop()) {
+        <div class="menu-section">
+            <h2>Sysop</h2>
+            <nav class="menu">
+                <a routerLink="/admin/users" class="menu-item">User Management</a>
+            </nav>
+        </div>
+    }
+</app-layout>

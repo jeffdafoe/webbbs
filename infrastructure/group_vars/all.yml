@@ -22,10 +22,6 @@ nodejs_version: "20"
 mercure_version: "0.16.0"
 mercure_port: 3000
 
-# Apache
-apache_api_port: 8000
-apache_frontend_port: 4200
-
 # Project
-project_name: webbbs
-git_repository: "git@github.com:jeffdafoe/webbbs.git"
+project_name: zbbs
+git_repository: "git@github.com:jeffdafoe/zbbs.git"

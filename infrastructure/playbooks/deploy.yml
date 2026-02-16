@@ -1,5 +1,5 @@
 ---
-- name: Deploy WebBBS application
+- name: Deploy ZBBS application
   hosts: all
   become: yes
 
@@ -25,11 +25,78 @@
         optimize_autoloader: "{{ 'yes' if deploy_environment == 'production' else 'no' }}"
       become_user: "{{ app_user }}"
 
-    - name: Run database migrations
-      command: php bin/console doctrine:migrations:migrate --no-interaction
+    - name: Set up application environment variables
+      template:
+        src: ../templates/zbbs-env.sh.j2
+        dest: /etc/profile.d/zbbs.sh
+        mode: '0644'
+
+    - name: Remove .env.local if it exists
+      file:
+        path: "{{ project_root }}/api/.env.local"
+        state: absent
+
+    - name: Generate JWT keypair if not present
+      command: >
+        openssl genpkey -out {{ project_root }}/api/config/jwt/private.pem
+        -aes256 -algorithm rsa -pkeyopt rsa_keygen_bits:4096
+        -pass pass:{{ jwt_passphrase }}
       args:
-        chdir: "{{ project_root }}/api"
+        creates: "{{ project_root }}/api/config/jwt/private.pem"
       become_user: "{{ app_user }}"
+
+    - name: Extract JWT public key if not present
+      command: >
+        openssl pkey -in {{ project_root }}/api/config/jwt/private.pem
+        -out {{ project_root }}/api/config/jwt/public.pem
+        -pubout -passin pass:{{ jwt_passphrase }}
+      args:
+        creates: "{{ project_root }}/api/config/jwt/public.pem"
+      become_user: "{{ app_user }}"
+
+    - name: Ensure JWT key directory permissions
+      file:
+        path: "{{ project_root }}/api/config/jwt"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: '0700'
+
+    - name: Find all SQL migrations
+      find:
+        paths: "{{ project_root }}/migrations"
+        patterns: "*_up.sql"
+      register: migration_files
+
+    - name: Check which migrations have been applied
+      shell: |
+        sudo -u postgres psql -d {{ database_name }} -t -A -c "SELECT migration_id FROM migrations_applied;"
+      register: applied_migrations
+      changed_when: false
+
+    - name: Set applied migrations list
+      set_fact:
+        applied_list: "{{ applied_migrations.stdout_lines | default([]) }}"
+
+    - name: Determine pending migrations
+      set_fact:
+        pending_migrations: "{{ migration_files.files | sort(attribute='path') | rejectattr('path', 'search', '(' + (applied_list | map('regex_escape') | join('|')) + ')') | list if applied_list | length > 0 else migration_files.files | sort(attribute='path') }}"
+
+    - name: Display migration status
+      debug:
+        msg: |
+          Total migrations: {{ migration_files.files | length }}
+          Already applied: {{ applied_list | length }}
+          Pending: {{ pending_migrations | length }}
+          {% for m in pending_migrations %}
+          - {{ m.path | basename }}
+          {% endfor %}
+
+    - name: Run pending SQL migrations
+      shell: |
+        sudo -u postgres psql -d {{ database_name }} -f "{{ item.path }}" && \
+        sudo -u postgres psql -d {{ database_name }} -c "INSERT INTO migrations_applied (migration_id) VALUES ('{{ item.path | basename | replace('_up.sql', '') }}');"
+      loop: "{{ pending_migrations }}"
+      when: run_migrations | default(false) | bool
 
     - name: Clear Symfony cache
       command: php bin/console cache:clear
@@ -39,14 +106,14 @@
 
     - name: Install npm dependencies
       npm:
-        path: "{{ project_root }}/frontend"
+        path: "{{ project_root }}/clients/modern"
         state: present
       become_user: "{{ app_user }}"
 
     - name: Build Angular for production
       command: ng build --configuration=production
       args:
-        chdir: "{{ project_root }}/frontend"
+        chdir: "{{ project_root }}/clients/modern"
       when: deploy_environment == 'production'
       become_user: "{{ app_user }}"
 
@@ -55,9 +122,9 @@
         name: "php{{ php_version }}-fpm"
         state: restarted
 
-    - name: Reload nginx
+    - name: Reload Apache
       service:
-        name: nginx
+        name: apache2
         state: reloaded
 
     - name: Display deployment complete message
@@ -70,4 +137,6 @@
 
           Services restarted:
           - PHP-FPM
-          - nginx
+          - Apache
+
+          Note: SQL migrations run with --extra-vars "run_migrations=true"
