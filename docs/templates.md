@@ -125,14 +125,22 @@ Any `@NAME@` that doesn't match a known macro passes through as-is. This means y
 
 ## Widget Markers
 
-Format: `@WIDGET:TYPE:name@` or `@WIDGET:TYPE:name:width@` — marks where an interactive element should render.
+Format: `@WIDGET:TYPE:name:width:items@` — marks where an interactive element should render.
+
+### Full Syntax
+
+```
+@WIDGET:TYPE:name@                              No width, no items
+@WIDGET:TYPE:name:width@                        Width only
+@WIDGET:TYPE:name:width:Item1,Item2,Item3@      Width and items
+```
 
 ### Types
 
 ```
-@WIDGET:MENU:name@          Menu (lightbar selection)
-@WIDGET:PROMPT:name@        Text input field
-@WIDGET:LIGHTBAR:name@      Lightbar list
+MENU        Lightbar selection menu
+PROMPT      Text input field
+LIGHTBAR    Lightbar list
 ```
 
 ### Width
@@ -144,23 +152,41 @@ The optional width parameter controls how many characters the widget slot occupi
 @WIDGET:MENU:login@         80-character wide (default)
 ```
 
+### Menu Items
+
+For `MENU` widgets, you can define the menu items directly in the template as a comma-separated list after the width. Each item can optionally specify a route in square brackets:
+
+```
+@WIDGET:MENU:login:74:Login,Register,Quit[disconnect]@
+@WIDGET:MENU:home:74:Edit Profile[profile],Who Is Online[who],Logout[disconnect]@
+```
+
+Each item has:
+- **Display label** — the text shown in the lightbar (e.g. "Edit Profile")
+- **Route** — the action to invoke, specified in `[brackets]`. If omitted, defaults to the label lowercased (e.g. "Login" → `login`)
+- **Hotkey** — the first character of the label (e.g. "Login" → "L")
+
+Routes are registered in a central route table. When a user selects a menu item, the `ScreenRunner` looks up the route and calls its handler. Multiple menu items across different templates can point to the same route (e.g. both "Quit" and "Logout" can route to `disconnect`).
+
+Items defined in the template can be supplemented by code at runtime — for example, role-specific items (like "User Management" for sysops) can be prepended with their route.
+
 ### How They Work
 
-The template renderer records the cursor position (row, column) where the marker appears, then emits spaces to fill the widget slot width. The calling code places the actual interactive element at that recorded position, self-centering within the slot width.
+The template renderer records the cursor position (row, column) where the marker appears, then emits spaces to fill the widget slot width. The `ScreenRunner` class reads the widget positions and items, builds the lightbar menu, and dispatches to route handlers.
 
 This means you design your ANSI art with space for the interactive element, put the marker where you want it to appear, and the code handles the rest. The spaces ensure the layout stays intact even before the widget renders.
 
-Example in a welcome screen template:
+### Example
 
 ```
-|01  ╔═══════════════════════════╗
-|01  ║  |0FWelcome to @BBSNAME@  |01║
-|01  ╚═══════════════════════════╝
-
-@WIDGET:MENU:login@
+|01  ╔═══════════════════════════════════════╗
+|01  ║  |0FWelcome to @BBSNAME:30@          |01║
+|01  ╠═══════════════════════════════════════╣
+|01  ║@WIDGET:MENU:login:37:Login,Register,Quit[disconnect]@║
+|01  ╚═══════════════════════════════════════╝
 ```
 
-The login menu (Login/Register/Quit) will render starting at whatever line the `@WIDGET:MENU:login@` marker is on.
+The login menu renders as a centered lightbar inside the box. Selecting "Login" invokes the `login` route, "Register" invokes `register`, and "Quit" invokes `disconnect`.
 
 ## Raw ANSI
 

@@ -1,12 +1,18 @@
 import { Terminal } from '@xterm/xterm';
 import { ansi } from './ansi';
 
+export interface WidgetItem {
+    label: string;
+    route: string;
+}
+
 export interface WidgetPosition {
     type: 'menu' | 'prompt' | 'lightbar';
     name: string;
     row: number;
     col: number;
     width: number;
+    items: WidgetItem[];
 }
 
 export interface RenderResult {
@@ -147,6 +153,18 @@ export class TemplateRenderer {
                         const widgetType = parts[0].toLowerCase();
                         const widgetName = parts[1];
                         const widgetWidth = parts.length >= 3 ? parseInt(parts[2], 10) : 80;
+                        const widgetItems: WidgetItem[] = [];
+                        if (parts.length >= 4) {
+                            const rawItems = parts[3].split(',');
+                            for (let ri = 0; ri < rawItems.length; ri++) {
+                                const bracketMatch = rawItems[ri].match(/^(.+)\[(.+)\]$/);
+                                if (bracketMatch) {
+                                    widgetItems.push({ label: bracketMatch[1], route: bracketMatch[2] });
+                                } else {
+                                    widgetItems.push({ label: rawItems[ri], route: rawItems[ri].toLowerCase() });
+                                }
+                            }
+                        }
                         if (widgetType === 'menu' || widgetType === 'prompt' || widgetType === 'lightbar') {
                             widgets.push({
                                 type: widgetType,
@@ -154,6 +172,7 @@ export class TemplateRenderer {
                                 row: cursor.row,
                                 col: cursor.col,
                                 width: widgetWidth,
+                                items: widgetItems,
                             });
                             // Emit spaces to fill the widget slot
                             const spaces = ' '.repeat(widgetWidth);

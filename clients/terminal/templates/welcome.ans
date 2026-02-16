@@ -10,7 +10,7 @@
 |01  ║@PAD:74@║
 |01  ║|08@CENTER:PHONE:74@|01║
 |01  ║@PAD:74@║
-|01  ║@WIDGET:MENU:login:74@║
+|01  ║@WIDGET:MENU:login:74:Login,Register,Quit[disconnect]@║
 |01  ║@PAD:74@║
 |01  ║@PAD:74@║
 |01  ║@PAD:74@║

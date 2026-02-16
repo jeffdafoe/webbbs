@@ -1,54 +1,20 @@
 import { Terminal } from '@xterm/xterm';
 import { ApiClient } from './api-client';
-import { TerminalIO, LightbarPosition } from './terminal-io';
-import { WidgetPosition } from './template-renderer';
+import { TerminalIO } from './terminal-io';
 import { DialogBox } from './dialog-box';
 import { ansi } from './ansi';
 
 export class LoginHandler {
     private io: TerminalIO;
-    private menuPosition?: LightbarPosition;
 
     constructor(
         private terminal: Terminal,
-        private apiClient: ApiClient,
-        private renderWelcome: () => void,
-        widgets?: WidgetPosition[]
+        private apiClient: ApiClient
     ) {
         this.io = new TerminalIO(terminal);
-        if (widgets) {
-            const loginWidget = widgets.find(w => w.name === 'login' && w.type === 'menu');
-            if (loginWidget) {
-                this.menuPosition = { row: loginWidget.row, col: loginWidget.col, width: loginWidget.width };
-            }
-        }
     }
 
-    async run(): Promise<string | null> {
-        while (true) {
-            const choice = await this.io.lightbar([
-                { label: 'Login', value: 'login', hotkey: 'L' },
-                { label: 'Register', value: 'register', hotkey: 'R' },
-                { label: 'Quit', value: 'quit', hotkey: 'Q' }
-            ], { position: this.menuPosition });
-
-            if (choice === 'login') {
-                const token = await this.handleLogin();
-                if (token) {
-                    return token;
-                }
-                this.renderWelcome();
-            } else if (choice === 'register') {
-                await this.handleRegister();
-                this.renderWelcome();
-            } else {
-                this.io.info('  Goodbye.');
-                return null;
-            }
-        }
-    }
-
-    private async handleLogin(): Promise<string | null> {
+    async login(): Promise<string | null> {
         const dialog = new DialogBox(this.terminal, 'Login', [
             { label: 'Username', name: 'username' },
             { label: 'Password', name: 'password', password: true }
@@ -73,7 +39,7 @@ export class LoginHandler {
             try {
                 const loginResult = await this.apiClient.login(username, password);
                 dialog.setMessage('Login successful!', ansi.lightGreen);
-                await this.sleep(800);
+                await this.io.sleep(800);
                 return loginResult.token;
             } catch {
                 dialog.setMessage('Invalid username or password.', ansi.lightRed);
@@ -82,7 +48,7 @@ export class LoginHandler {
         }
     }
 
-    private async handleRegister(): Promise<void> {
+    async register(): Promise<string | null> {
         const dialog = new DialogBox(this.terminal, 'New User Registration', [
             { label: 'Username', name: 'username' },
             { label: 'Password', name: 'password', password: true },
@@ -94,7 +60,7 @@ export class LoginHandler {
             const result = await dialog.run();
 
             if (result.cancelled) {
-                return;
+                return null;
             }
 
             const username = result.values.username;
@@ -117,8 +83,8 @@ export class LoginHandler {
             try {
                 await this.apiClient.register(username, password, email || undefined);
                 dialog.setMessage('Registration successful! You may now log in.', ansi.lightGreen);
-                await this.sleep(1500);
-                return;
+                await this.io.sleep(1500);
+                return null;
             } catch (error) {
                 if (error instanceof Error) {
                     dialog.setMessage(error.message, ansi.lightRed);
@@ -128,9 +94,5 @@ export class LoginHandler {
                 dialog.clearFields();
             }
         }
-    }
-
-    private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }

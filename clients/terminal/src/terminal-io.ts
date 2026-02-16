@@ -327,6 +327,10 @@ export class TerminalIO {
         this.terminal.write(ansi.cursorTo(1, 1) + ansi.bgDarkGray + ansi.white + left + pad + right + ansi.reset);
     }
 
+    sleep(milliseconds: number): Promise<void> {
+        return new Promise((resolve) => setTimeout(resolve, milliseconds));
+    }
+
     clear(): void {
         this.terminal.write(ansi.clearScreen);
     }
