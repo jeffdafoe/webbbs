@@ -31,6 +31,24 @@ header {
     gap: 1rem;
 }
 
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: none;
+    border: none;
+    color: #a0a0b0;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+
+    &:hover {
+        color: #e0e0e0;
+        background: rgba(255, 255, 255, 0.05);
+    }
+}
+
 .user-info {
     color: #a0a0b0;
     font-size: 0.875rem;

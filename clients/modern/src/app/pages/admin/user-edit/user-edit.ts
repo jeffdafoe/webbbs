@@ -1,7 +1,9 @@
 import { Component, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { Location } from '@angular/common';
 import { UserAdminService, UserDetail } from '../../../services/user-admin.service';
+import { DialogService } from '../../../services/dialog.service';
 import { AppLayout } from '../../../components/app-layout/app-layout';
 
 @Component({
@@ -33,7 +35,9 @@ export class UserEdit implements OnInit {
     constructor(
         private route: ActivatedRoute,
         private router: Router,
-        private userAdminService: UserAdminService
+        private location: Location,
+        private userAdminService: UserAdminService,
+        private dialogService: DialogService,
     ) {}
 
     ngOnInit(): void {
@@ -118,8 +122,18 @@ export class UserEdit implements OnInit {
         });
     }
 
-    onDelete(): void {
-        if (!confirm('Delete this user? This cannot be undone.')) {
+    onCancel(): void {
+        this.location.back();
+    }
+
+    async onDelete(): Promise<void> {
+        const result = await this.dialogService.open({
+            message: 'Delete this user? This cannot be undone.',
+            confirmLabel: 'Delete',
+            confirmStyle: 'danger',
+        });
+
+        if (result !== 'confirm') {
             return;
         }
 

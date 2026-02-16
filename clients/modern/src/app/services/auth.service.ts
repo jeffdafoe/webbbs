@@ -1,6 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
+import { Observable, tap, map } from 'rxjs';
 
 interface LoginResponse {
     token: string;
@@ -31,13 +32,14 @@ export class AuthService {
     isAuthenticated = computed(() => this.tokenSignal() !== null);
     token = computed(() => this.tokenSignal());
     userInfo = computed(() => this.userInfoSignal());
-    isSysop = computed(() => {
+
+    hasRole(role: string): boolean {
         const info = this.userInfoSignal();
         if (info === null) {
             return false;
         }
-        return info.roles.includes('ROLE_SYSOP');
-    });
+        return info.roles.includes(role);
+    }
 
     constructor(
         private http: HttpClient,
@@ -48,19 +50,16 @@ export class AuthService {
         }
     }
 
-    login(username: string, password: string): void {
-        this.http.post<LoginResponse>('/api/login', { username, password })
-            .subscribe({
-                next: (response) => {
-                    localStorage.setItem('jwt_token', response.token);
-                    this.tokenSignal.set(response.token);
-                    this.fetchUserInfo();
-                    this.router.navigate(['/home']);
-                },
-                error: (error) => {
-                    console.error('Login failed:', error);
-                }
-            });
+    login(username: string, password: string): Observable<void> {
+        return this.http.post<LoginResponse>('/api/login', { username, password }).pipe(
+            tap((response) => {
+                localStorage.setItem('jwt_token', response.token);
+                this.tokenSignal.set(response.token);
+                this.fetchUserInfo();
+                this.router.navigate(['/home']);
+            }),
+            map(() => undefined),
+        );
     }
 
     register(username: string, password: string, email?: string): void {

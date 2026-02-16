@@ -2,6 +2,12 @@
     <header>
         <a routerLink="/home" class="logo">{{ settingsService.bbsName }}</a>
         <div class="header-right">
+            @if (showBack) {
+                <button class="back-button" (click)="goBack()">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                    Back
+                </button>
+            }
             <span class="user-info">{{ authService.userInfo()?.username }}</span>
             <button class="logout-button" (click)="logout()">Logout</button>
         </div>

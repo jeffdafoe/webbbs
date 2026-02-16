@@ -1,5 +1,11 @@
 <app-layout>
-    <h2>Edit User: {{ username() }}</h2>
+    <div class="page-header">
+        <h2>Edit User: {{ username() }}</h2>
+        <button type="button" class="delete-link" (click)="onDelete()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            Delete
+        </button>
+    </div>
 
     @if (loading()) {
         <p class="status-message">Loading...</p>
@@ -164,7 +170,7 @@
                 <button type="submit" class="btn-save" [disabled]="saving()">
                     {{ saving() ? 'Saving...' : 'Save Changes' }}
                 </button>
-                <button type="button" class="btn-delete" (click)="onDelete()">Delete User</button>
+                <button type="button" class="btn-cancel" (click)="onCancel()">Cancel</button>
             </div>
         </form>
     }

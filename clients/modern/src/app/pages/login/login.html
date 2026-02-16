@@ -1,7 +1,13 @@
+@if (loading()) {
+    <app-spinner />
+}
 <div class="auth-container">
     <div class="auth-box">
         <h1>ZBBS</h1>
         <h2>Login</h2>
+        @if (error()) {
+            <div class="error-message">{{ error() }}</div>
+        }
         <form (ngSubmit)="onSubmit()">
             <div class="form-group">
                 <label for="username">Username</label>
@@ -27,7 +33,7 @@
                     required
                 />
             </div>
-            <button type="submit">Login</button>
+            <button type="submit" [disabled]="loading()">Login</button>
         </form>
         <p class="auth-link">
             No account? <a routerLink="/register">Register</a>
