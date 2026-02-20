@@ -18,11 +18,31 @@
     - name: Pull latest code from release branch
       git:
         repo: "{{ git_repository }}"
-        dest: "{{ project_root }}"
+        dest: "{{ repo_root }}"
         version: "{{ deploy_branch | default('release') }}"
         force: yes
       when: deploy_environment == 'production'
       become_user: "{{ app_user }}"
+
+    - name: Create deployment directory
+      file:
+        path: "{{ project_root }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: "0755"
+      when: repo_root != project_root
+
+    - name: Deploy application code
+      synchronize:
+        src: "{{ repo_root }}/{{ item }}/"
+        dest: "{{ project_root }}/{{ item }}/"
+        delete: yes
+      delegate_to: "{{ inventory_hostname }}"
+      loop:
+        - api
+        - clients
+        - migrations
+      when: repo_root != project_root
 
     - name: Set up application environment variables
       template:

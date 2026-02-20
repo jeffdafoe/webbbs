@@ -19,18 +19,18 @@ apt install -y git ansible curl
 
 # Clone repository
 echo -e "\033[1m[2/4] Cloning ZBBS repository...\033[0m"
-if [ -d "/var/www/zbbs" ]; then
-    echo "Directory /var/www/zbbs already exists. Pulling latest..."
-    cd /var/www/zbbs
+if [ -d "/opt/zbbs" ]; then
+    echo "Directory /opt/zbbs already exists. Pulling latest..."
+    cd /opt/zbbs
     git pull
 else
-    git clone https://github.com/jeffdafoe/zbbs.git /var/www/zbbs
+    git clone https://github.com/jeffdafoe/zbbs.git /opt/zbbs
 fi
 
 # Run setup playbook (installs PHP, PostgreSQL, Node, Mercure, Apache)
 echo -e "\033[1m[3/4] Running setup...\033[0m"
-cd /var/www/zbbs/infrastructure
-export ANSIBLE_CONFIG=/var/www/zbbs/infrastructure/ansible.cfg
+cd /opt/zbbs/infrastructure
+export ANSIBLE_CONFIG=/opt/zbbs/infrastructure/ansible.cfg
 ansible-playbook -i inventory/local.yml playbooks/setup.yml
 
 # Run deploy playbook (composer install, npm install, migrations, JWT keys)

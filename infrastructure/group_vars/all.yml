@@ -24,4 +24,6 @@ mercure_port: 3000
 
 # Project
 project_name: zbbs
+repo_root: /opt/zbbs
+project_root: /var/www/zbbs
 git_repository: "git@github.com:jeffdafoe/zbbs.git"

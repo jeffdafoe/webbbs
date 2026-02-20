@@ -5,6 +5,7 @@ all:
       ansible_python_interpreter: /usr/bin/python3
   vars:
     deploy_environment: development
+    repo_root: /mnt/c/dev/zbbs
     project_root: /mnt/c/dev/zbbs
     server_name: zbbs.local
     app_user: jeff
