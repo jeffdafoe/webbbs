@@ -13,7 +13,7 @@ php_extensions:
   - php{{ php_version }}-zip
 
 # PostgreSQL
-postgresql_version: "15"
+postgresql_version: "17"
 
 # Node.js
 nodejs_version: "20"
