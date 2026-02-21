@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Usage:
+#   First time:  curl -sSL https://raw.githubusercontent.com/jeffdafoe/zbbs/main/install.sh -o /tmp/install.sh && sudo bash /tmp/install.sh
+#   Re-install:  sudo bash /opt/zbbs/install.sh
+#   Deploy only: sudo bash /opt/zbbs/deploy.sh
+
 echo -e "\033[1;36m==================================="
 echo "  ZBBS Installer"
 echo -e "===================================\033[0m"
@@ -27,18 +32,21 @@ else
     git clone https://github.com/jeffdafoe/zbbs.git /opt/zbbs
 fi
 
-# Run setup playbook (installs PHP, PostgreSQL, Node, Mercure, Apache)
+# Run setup playbook (will prompt for secrets on first run)
 echo -e "\033[1m[3/4] Running setup...\033[0m"
 cd /opt/zbbs/infrastructure
 export ANSIBLE_CONFIG=/opt/zbbs/infrastructure/ansible.cfg
-ansible-playbook -i inventory/local.yml playbooks/setup.yml
+ansible-playbook -i inventory/production.yml playbooks/setup.yml
 
-# Run deploy playbook (composer install, npm install, migrations, JWT keys)
+# Run deploy playbook
 echo -e "\033[1m[4/4] Running deploy...\033[0m"
-ansible-playbook -i inventory/local.yml playbooks/deploy.yml --extra-vars "run_migrations=true"
+ansible-playbook -i inventory/production.yml playbooks/deploy.yml
 
 echo ""
 echo -e "\033[1;32m==================================="
 echo "  Installation complete!"
 echo -e "===================================\033[0m"
+echo ""
+echo "To deploy updates later, run:"
+echo "  sudo bash /opt/zbbs/deploy.sh"
 echo ""
