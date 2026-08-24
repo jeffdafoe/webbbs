@@ -1,6 +1,9 @@
 package sim
 
-import "errors"
+import (
+	"errors"
+	"math"
+)
 
 // holdings_commands.go — operator holdings adjustment (ZBBS-WORK-330).
 //
@@ -108,6 +111,20 @@ func AdjustActorHoldings(id ActorID, coinsDelta int, itemDeltas []ActorInventory
 
 			// --- all validated: apply atomically ---
 			a.Coins = newCoins
+			// LLM-644: an operator coin GRANT to a visitor is meant to be
+			// spendable (the LLM-410 float precedent), so it raises the trip
+			// budget alongside the wallet. A debit needs nothing — spendable
+			// is min(wallet, budget), so the smaller wallet already caps it.
+			// Saturating add (code_review): the wallet is addChecked-guarded
+			// above, but this independent counter is not, and a wrapped
+			// budget would freeze the visitor's spending.
+			if a.VisitorState != nil && coinsDelta > 0 {
+				if a.VisitorState.SpendBudget > math.MaxInt-coinsDelta {
+					a.VisitorState.SpendBudget = math.MaxInt
+				} else {
+					a.VisitorState.SpendBudget += coinsDelta
+				}
+			}
 			for _, c := range changes {
 				if c.qty == 0 {
 					delete(a.Inventory, c.kind) // delete-on-zero invariant

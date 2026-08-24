@@ -121,6 +121,12 @@ type UmbilicalAgentDTO struct {
 	Inventory map[string]int `json:"inventory,omitempty"`
 	Coins     int            `json:"coins"`
 
+	// SpendBudget is a visitor's remaining trip spend budget (LLM-644) —
+	// what of the coins above he may still put into purchases; the rest is
+	// takings bound for home. Omitted for residents (no cap). Pointer so an
+	// exhausted budget (0) still renders, distinct from absence.
+	SpendBudget *int `json:"spend_budget,omitempty"`
+
 	// What the actor produces / restocks at work — the read counterpart to the
 	// restock/set control route (LLM-111). RestockPolicy lists the managed items
 	// + supply mode (produce/buy/forage) + personal-carry cap; it reuses the
@@ -235,6 +241,10 @@ func (s *Server) handleUmbilicalAgent(w http.ResponseWriter, r *http.Request) {
 			TickInFlight:      a.TickInFlight,
 			TickAttemptID:     string(a.TickAttemptID),
 			Attributes:        sim.SortedAttributeSlugs(a),
+		}
+		if a.VisitorState != nil {
+			budget := a.VisitorState.SpendBudget
+			dto.SpendBudget = &budget
 		}
 		if len(a.Needs) > 0 {
 			dto.Needs = make(map[string]int, len(a.Needs))

@@ -53,6 +53,8 @@ func factorActor(pos sim.TilePos, inside sim.StructureID, huddle sim.HuddleID) *
 		Inventory:         map[sim.ItemKind]int{"coat": 3, "cloak": 3, "silver_locket": 2},
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			// LLM-644: budget = purse, as at spawn.
+			SpendBudget: 180,
 			Archetype:   sim.FactorArchetype,
 			Origin:      sim.FactorOrigin,
 			Disposition: "mercenary",

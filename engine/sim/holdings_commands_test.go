@@ -3,6 +3,7 @@ package sim_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/jeffdafoe/llm-memory-plugin-salem-1692/engine/sim"
@@ -262,4 +263,54 @@ func readHoldings(t *testing.T, w *sim.World, id sim.ActorID) holdingsState {
 		t.Fatalf("readHoldings: %v", err)
 	}
 	return res.(holdingsState)
+}
+
+// TestAdjustHoldings_VisitorGrantRaisesBudget — the LLM-644 operator-fiat door:
+// a positive coin grant to a visitor raises the trip spend budget alongside the
+// wallet (fiat coin is meant to be spendable), a debit leaves the budget alone
+// (spendable min()s against the smaller wallet), and the budget addition
+// saturates at MaxInt instead of wrapping (code_review).
+func TestAdjustHoldings_VisitorGrantRaisesBudget(t *testing.T) {
+	w, stop := buildHoldingsTestWorld(t, []holdingsActorSpec{{id: "vstr-1", kind: sim.KindNPCShared, coins: 10}})
+	defer stop()
+	seedBudget := func(b int) {
+		if _, err := w.Send(sim.Command{Fn: func(world *sim.World) (any, error) {
+			world.Actors["vstr-1"].VisitorState = &sim.VisitorState{SpendBudget: b}
+			return nil, nil
+		}}); err != nil {
+			t.Fatalf("seed visitor state: %v", err)
+		}
+	}
+	readBudget := func() int {
+		var b int
+		if _, err := w.Send(sim.Command{Fn: func(world *sim.World) (any, error) {
+			b = world.Actors["vstr-1"].VisitorState.SpendBudget
+			return nil, nil
+		}}); err != nil {
+			t.Fatalf("read budget: %v", err)
+		}
+		return b
+	}
+
+	seedBudget(4)
+	if _, err := grant(t, w, "vstr-1", 15, nil); err != nil {
+		t.Fatalf("credit: %v", err)
+	}
+	if got := readBudget(); got != 19 {
+		t.Errorf("budget after +15 grant = %d, want 19", got)
+	}
+	if _, err := grant(t, w, "vstr-1", -20, nil); err != nil {
+		t.Fatalf("debit: %v", err)
+	}
+	if got := readBudget(); got != 19 {
+		t.Errorf("budget after -20 debit = %d, want 19 (debits leave the budget alone)", got)
+	}
+
+	seedBudget(math.MaxInt - 2)
+	if _, err := grant(t, w, "vstr-1", 5, nil); err != nil {
+		t.Fatalf("saturating credit: %v", err)
+	}
+	if got := readBudget(); got != math.MaxInt {
+		t.Errorf("budget after near-max grant = %d, want saturation at MaxInt, not a wrap", got)
+	}
 }

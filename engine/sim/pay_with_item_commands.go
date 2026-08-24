@@ -1324,8 +1324,8 @@ func runPayWithItemFastPath(
 	}
 	if !buyerCanAfford(buyer, amount) {
 		return nil, fmt.Errorf(
-			"insufficient coins (have %d, need %d) — quote a smaller offer.",
-			buyer.Coins, amount,
+			"insufficient coins (have %d to spend, need %d) — quote a smaller offer.",
+			buyer.SpendableCoins(), amount,
 		)
 	}
 	if seller.Coins > math.MaxInt-amount {
@@ -2425,12 +2425,17 @@ func withdrawCrossingOffers(
 	}
 }
 
-// buyerCanAfford reports whether buyer holds at least amount coins. It
-// is the single definition of the funds comparison, shared by all three
-// sites that ask it: the offer-time fast-fail in PayWithItem's slow
-// path, the fast-path predicate 6, and AcceptPay's gate 11. Centralizing
-// the predicate keeps those three from drifting on what "can afford"
-// means (e.g. if a future escrow/reserved-coins concept lands).
+// buyerCanAfford reports whether buyer can put at least amount coins into
+// a purchase. It is the single definition of the funds comparison, shared
+// by all the sites that ask it: the offer-time fast-fail in PayWithItem's
+// slow path, the fast-path predicate 6, AcceptPay's gate 11, and the labor
+// reward checks (employerCanCoverLaborReward). Centralizing the predicate
+// keeps those from drifting on what "can afford" means — and LLM-644 is
+// exactly the reserved-coins concept the original comment anticipated: for
+// a visitor the answer is SpendableCoins (wallet capped by the remaining
+// trip budget), so a factor flush with bale proceeds still cannot afford
+// past the purse he arrived with. Residents are unchanged (spendable ==
+// wallet).
 //
 // The ACTION taken when this returns false is intentionally NOT shared,
 // because it differs by lifecycle stage: the two offer-time sites reject
@@ -2439,7 +2444,7 @@ func withdrawCrossingOffers(
 // the failed_insufficient_funds terminal. Sharing the action would force
 // one of those behaviors onto the other.
 func buyerCanAfford(buyer *Actor, amount int) bool {
-	return buyer.Coins >= amount
+	return buyer.SpendableCoins() >= amount
 }
 
 // buyerHoldsPayItems reports whether the buyer currently holds every goods
@@ -2509,21 +2514,24 @@ func payOfferShortfall(w *World, buyer *Actor, amount, qty int, payItems []ItemK
 		// (amount==0 can't be unaffordable) and qty>=1 (validated upstream).
 		// Multiply before dividing to keep the floor honest; int64 guards the
 		// product against overflow on a 32-bit int build, clamped back into int
-		// range (code_review).
-		affordable64 := int64(buyer.Coins) * int64(qty) / int64(amount)
+		// range (code_review). SpendableCoins, not the raw wallet (LLM-644): the
+		// figure named must be the one the gate compared, or a proceeds-flush
+		// visitor is told he "has" coin the trade will still refuse.
+		spendable := buyer.SpendableCoins()
+		affordable64 := int64(spendable) * int64(qty) / int64(amount)
 		if affordable64 > int64(math.MaxInt32) {
 			affordable64 = int64(math.MaxInt32)
 		}
 		affordable := int(affordable64)
 		if affordable < 1 {
 			return fmt.Errorf(
-				"insufficient coins (have %d, need %d) — you can't afford even one at this price; lower the quantity or pay with goods you carry.",
-				buyer.Coins, amount,
+				"insufficient coins (have %d to spend, need %d) — you can't afford even one at this price; lower the quantity or pay with goods you carry.",
+				spendable, amount,
 			)
 		}
 		return fmt.Errorf(
-			"insufficient coins (have %d, need %d) — at this price you can afford %d; lower the quantity or pay with goods you carry.",
-			buyer.Coins, amount, affordable,
+			"insufficient coins (have %d to spend, need %d) — at this price you can afford %d; lower the quantity or pay with goods you carry.",
+			spendable, amount, affordable,
 		)
 	}
 	spokenFor := SpokenFor(w.ItemKinds, w.Recipes, LiveBarterHolder(w, buyer))
@@ -3305,6 +3313,9 @@ func commitPayTransfer(
 	charge := depositChargeForEntry(w, seller, entry)
 	buyer.Coins -= charge
 	seller.Coins += charge
+	// LLM-644: visitor spending draws down the trip budget — coin top-ups on
+	// barter legs included, since charge is whatever coin actually moved.
+	drawVisitorSpend(buyer, charge)
 	// LLM-118: a market stall wears in proportion to the coin its owner takes
 	// in here; crossing the repair threshold wakes them to mend it. LLM-411: the
 	// goods ride along so the wear taxes the sale's MARGIN over what the seller

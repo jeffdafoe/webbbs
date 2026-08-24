@@ -93,6 +93,11 @@ func TestVisitorSpawn_DayPlanSeeds(t *testing.T) {
 	if got.Coins < 30 || got.Coins > 50 {
 		t.Errorf("purse = %d, want [30,50]", got.Coins)
 	}
+	// LLM-644: the trip budget seeds equal to the purse — what he arrived
+	// carrying is exactly what he may spend here.
+	if got.VisitorState.SpendBudget != got.Coins {
+		t.Errorf("SpendBudget = %d, want the purse (%d)", got.VisitorState.SpendBudget, got.Coins)
+	}
 	// Departure anchored to the next daybreak: 2026-07-13 06:00 ET.
 	wantDepart := time.Date(2026, 7, 13, 6, 0, 0, 0, loc)
 	if !got.VisitorState.ExpiresAt.Equal(wantDepart) {

@@ -377,8 +377,8 @@ func DeliverOrder(sellerID ActorID, orderID OrderID, at time.Time) Command {
 				if buyer.CurrentHuddleID == "" || buyer.CurrentHuddleID != seller.CurrentHuddleID {
 					return nil, fmt.Errorf("deliver_order: buyer %q is not here to pay the %d-coin balance on order %d", o.BuyerID, balanceDue, orderID)
 				}
-				if buyer.Coins < balanceDue {
-					return nil, fmt.Errorf("deliver_order: buyer %q has %d coins, needs %d to settle the balance on order %d", o.BuyerID, buyer.Coins, balanceDue, orderID)
+				if buyer.SpendableCoins() < balanceDue {
+					return nil, fmt.Errorf("deliver_order: buyer %q has %d coins to spend, needs %d to settle the balance on order %d", o.BuyerID, buyer.SpendableCoins(), balanceDue, orderID)
 				}
 				if seller.Coins > math.MaxInt-balanceDue {
 					return nil, fmt.Errorf("deliver_order: settling %d would overflow seller %q coins on order %d", balanceDue, sellerID, orderID)
@@ -402,6 +402,7 @@ func DeliverOrder(sellerID ActorID, orderID OrderID, at time.Time) Command {
 			if balanceDue > 0 && balanceBuyer != nil {
 				balanceBuyer.Coins -= balanceDue
 				seller.Coins += balanceDue
+				drawVisitorSpend(balanceBuyer, balanceDue)
 				// LLM-411: the balance leg wears on its proportional share of the
 				// sale's margin over the seller's cost basis — the deposit leg took
 				// its share back at accept, so the two together tax the margin once.

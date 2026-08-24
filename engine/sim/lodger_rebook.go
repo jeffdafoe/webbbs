@@ -165,7 +165,7 @@ func RebookLodgersDue(now time.Time) Command {
 					// isn't a paying lodger of their own inn (code_review).
 					continue
 				}
-				if lodger.Coins < nightly {
+				if lodger.SpendableCoins() < nightly {
 					// A broke lodger stays a candidate every minute across the
 					// whole 6h window — logging each skip would emit ~360 lines
 					// per lodger and drown real signal (work's note). Log only
@@ -173,8 +173,8 @@ func RebookLodgersDue(now time.Time) Command {
 					// get the "went homeless" beat once, near when it matters,
 					// without the spam. Stateless — no per-grant bookkeeping.
 					if grant.ExpiresAt.Sub(now) <= 2*RoomSweepInterval {
-						log.Printf("sim/lodger_rebook: lodger %q has %d coins; need %d — room lapsing (can't afford renewal)",
-							lodgerID, lodger.Coins, nightly)
+						log.Printf("sim/lodger_rebook: lodger %q has %d coins to spend; need %d — room lapsing (can't afford renewal)",
+							lodgerID, lodger.SpendableCoins(), nightly)
 					}
 					continue
 				}
@@ -182,6 +182,7 @@ func RebookLodgersDue(now time.Time) Command {
 				newExpires := ComputeLodgerUntil(*grant.ExpiresAt, 1, checkOut, loc)
 				lodger.Coins -= nightly
 				keeper.Coins += nightly
+				drawVisitorSpend(lodger, nightly)
 				grant.ExpiresAt = &newExpires
 
 				// Fall back to the id for the durable row's speaker_name and

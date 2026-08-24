@@ -968,13 +968,22 @@ func renderActor(b *strings.Builder, a ActorView) {
 			break
 		}
 	}
-	if a.Coins == 0 {
-		if holdsTradeableGoods {
-			b.WriteString("Coins in your purse: 0 — you have no coins to spend, but you may be able to offer goods you carry in trade.\n")
-		} else {
-			b.WriteString("Coins in your purse: 0 — you have no coins to spend, so you cannot pay for anything until you earn some.\n")
-		}
-	} else {
+	switch {
+	// LLM-644: a visitor whose takings have outrun his trip budget sees the
+	// split, not the raw wallet — the coin he can still put into a purchase,
+	// and the rest named as takings bound for home so the earnings he watched
+	// come in don't silently vanish from the scene. Without this a
+	// proceeds-flush factor read a fat purse and looped offers the pay gates
+	// refuse.
+	case a.VisitorTakings > 0 && a.Coins == 0:
+		fmt.Fprintf(b, "Coins in your purse: %d — but all of it is the trip's takings, bound for home. Your buying purse for this journey is spent; trade goods you carry if you still want something.\n", a.VisitorTakings)
+	case a.VisitorTakings > 0:
+		fmt.Fprintf(b, "Coins in your purse: %d, of which %d is left to spend on this trip — the other %d is takings, bound for home.\n", a.Coins+a.VisitorTakings, a.Coins, a.VisitorTakings)
+	case a.Coins == 0 && holdsTradeableGoods:
+		b.WriteString("Coins in your purse: 0 — you have no coins to spend, but you may be able to offer goods you carry in trade.\n")
+	case a.Coins == 0:
+		b.WriteString("Coins in your purse: 0 — you have no coins to spend, so you cannot pay for anything until you earn some.\n")
+	default:
 		fmt.Fprintf(b, "Coins in your purse: %d.\n", a.Coins)
 	}
 	// Standing inventory readout (ZBBS-HOME-361): neutral statement of what the

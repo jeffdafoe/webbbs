@@ -761,3 +761,51 @@ func TestPay_CoinShortQuoteSteersToBargainNotSettlement(t *testing.T) {
 		t.Errorf("bob.Coins = %d, want 0 (no transfer)", got)
 	}
 }
+
+// --- TestPay_VisitorBudgetGate (LLM-644): a visitor's bare pay is capped at
+// his remaining trip budget, not his wallet — a factor flush with bale
+// proceeds must not be able to hand them back. The gate names the SPENDABLE
+// figure; a pay within budget draws it down.
+func TestPay_VisitorBudgetGate(t *testing.T) {
+	w, stop := buildPayTestWorld(t,
+		payActorSpec{id: "factor", displayName: "Elias Drum", kind: sim.KindNPCShared, huddleID: "h1", coins: 131},
+		payActorSpec{id: "josiah", displayName: "Josiah Thorne", kind: sim.KindNPCShared, huddleID: "h1"},
+	)
+	defer stop()
+
+	// Stamp visitor state after load: wallet 131 (proceeds included), only 5
+	// left of the arrival purse. The wallet alone would cover every pay below.
+	if _, err := w.Send(sim.Command{Fn: func(world *sim.World) (any, error) {
+		world.Actors["factor"].VisitorState = &sim.VisitorState{SpendBudget: 5}
+		return nil, nil
+	}}); err != nil {
+		t.Fatalf("seed visitor state: %v", err)
+	}
+
+	_, err := w.Send(sim.Pay("factor", "Josiah Thorne", 10, "", time.Now().UTC()))
+	if err == nil {
+		t.Fatal("Pay: want budget rejection for a visitor over trip budget, got nil")
+	}
+	if !strings.Contains(err.Error(), "have 5 to spend") || !strings.Contains(err.Error(), "need 10") {
+		t.Errorf("error should name the spendable figure, not the wallet: %v", err)
+	}
+
+	if _, err := w.Send(sim.Pay("factor", "Josiah Thorne", 4, "", time.Now().UTC())); err != nil {
+		t.Fatalf("Pay within budget: %v", err)
+	}
+	if _, err := w.Send(sim.Command{Fn: func(world *sim.World) (any, error) {
+		factor := world.Actors["factor"]
+		if factor.Coins != 127 {
+			t.Errorf("factor.Coins = %d; want 127", factor.Coins)
+		}
+		if got := factor.VisitorState.SpendBudget; got != 1 {
+			t.Errorf("SpendBudget = %d; want 1 (drawn by the pay)", got)
+		}
+		if got := world.Actors["josiah"].Coins; got != 4 {
+			t.Errorf("josiah.Coins = %d; want 4", got)
+		}
+		return nil, nil
+	}}); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+}

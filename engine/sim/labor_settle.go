@@ -262,6 +262,10 @@ func settleCompletedLabor(w *World, offer *LaborOffer, now time.Time) {
 	// on zero to keep inventories sparse (the commitPayTransfer convention).
 	employer.Coins -= offer.Reward
 	worker.Coins += offer.Reward
+	// LLM-644: a visitor employer's wage draws his trip budget like any other
+	// coin he pays out (canPay above asked employerCanCoverLaborReward →
+	// buyerCanAfford, which already compared against it).
+	drawVisitorSpend(employer, offer.Reward)
 	for _, ri := range offer.RewardItems {
 		if remaining := employer.Inventory[ri.Kind] - ri.Qty; remaining > 0 {
 			employer.Inventory[ri.Kind] = remaining

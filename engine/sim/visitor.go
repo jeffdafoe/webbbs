@@ -922,6 +922,10 @@ func dispatchVisitorSpawn(w *World, inputs VisitorTickInputs, t *VisitorCascadeT
 		// The bound trade errand (LLM-455): non-nil for a merchant, nil for a passer-through.
 		// Drives the rounds cue, the commerce-confinement steer/gate, and the coin-valve.
 		Trade: trade,
+		// What he may SPEND here = what he arrived carrying (LLM-644). Sales
+		// credit the wallet but never this, so a seller factor cannot recycle
+		// his bale's proceeds into surplus-buying.
+		SpendBudget: purse,
 	}
 
 	// Give the traveler a visible form: resolve his sprite (by archetype for a passer, by

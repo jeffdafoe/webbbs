@@ -15130,6 +15130,8 @@ func travelerSelfIdentityPreface() (*sim.Snapshot, sim.ActorID, []sim.WarrantMet
 		Coins:             8,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			// LLM-644: budget = purse, as at spawn.
+			SpendBudget: 8,
 			Archetype:   "peddler",
 			Origin:      "Boston",
 			Disposition: "weary",
@@ -15176,6 +15178,7 @@ func travelerSelfIdentityPrefaceVocation() (*sim.Snapshot, sim.ActorID, []sim.Wa
 		Coins:             8,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 8,
 			Archetype:   "circuit preacher",
 			Origin:      "Beverly",
 			Disposition: "wry",
@@ -15221,6 +15224,7 @@ func travelerSelfIdentityPrefaceWithRoadWord() (*sim.Snapshot, sim.ActorID, []si
 		Coins:             8,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 8,
 			Archetype:   "peddler",
 			Origin:      "Boston",
 			Disposition: "weary",
@@ -15272,6 +15276,7 @@ func travelerRumorSpentWithPresentCompany() (*sim.Snapshot, sim.ActorID, []sim.W
 		Needs:             map[sim.NeedKey]int{},
 		Acquaintances:     map[string]sim.Acquaintance{"Hannah Boggs": {}},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       8,
 			Archetype:         "peddler",
 			Origin:            "Boston",
 			Disposition:       "weary",
@@ -15334,6 +15339,7 @@ func travelerRumorAlreadyToldOneOfCompany() (*sim.Snapshot, sim.ActorID, []sim.W
 		Needs:             map[sim.NeedKey]int{},
 		Acquaintances:     map[string]sim.Acquaintance{"Hannah Boggs": {}, "Goodman Stark": {}},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       8,
 			Archetype:         "peddler",
 			Origin:            "Boston",
 			Disposition:       "weary",
@@ -15407,6 +15413,7 @@ func travelerRumorToldSomeoneNotHere() (*sim.Snapshot, sim.ActorID, []sim.Warran
 		Needs:             map[sim.NeedKey]int{},
 		Acquaintances:     map[string]sim.Acquaintance{"Goodman Stark": {}},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       8,
 			Archetype:         "peddler",
 			Origin:            "Boston",
 			Disposition:       "weary",
@@ -15523,6 +15530,7 @@ func travelerReturnerSelfPreface() (*sim.Snapshot, sim.ActorID, []sim.WarrantMet
 		Coins:             8,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 8,
 			Archetype:   "peddler",
 			Origin:      "Boston",
 			Disposition: "weary",
@@ -15573,6 +15581,7 @@ func travelerReturnerEpisodicMemory() (*sim.Snapshot, sim.ActorID, []sim.Warrant
 		Coins:             8,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 8,
 			Archetype:   "peddler",
 			Origin:      "Boston",
 			Disposition: "weary",

@@ -602,6 +602,9 @@ func refundOrderPayment(w *World, o *Order, amount int) {
 			o.ID, o.BuyerID, buyer.Coins, amount)
 	default:
 		buyer.Coins += amount
+		// LLM-644: a deposit drawn from a visitor's trip budget comes back to
+		// it with the refund — the buy it funded never happened.
+		refundVisitorSpend(buyer, amount)
 		credited = true
 		log.Printf("sim/order: refunded %d coins to buyer %q for expired order %d", amount, o.BuyerID, o.ID)
 	}

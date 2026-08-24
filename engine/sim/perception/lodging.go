@@ -131,7 +131,7 @@ func buildLodgingView(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.Ac
 		InnName:             innName,
 		ExpiresAt:           *best.ExpiresAt,
 		NightlyRate:         sim.LodgingNightlyRate(snap.LodgingDefaultWeeklyRate),
-		Coins:               actorSnap.Coins,
+		Coins:               actorSnap.SpendableCoins(),
 		DeskRememberedShut:  rememberedShut,
 		RenewalInFlight:     renewalInFlight,
 		RenewalDue:          renewalDue,
