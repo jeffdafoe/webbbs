@@ -72,7 +72,7 @@ func classifyCoPresentBuy(snap *sim.Snapshot, buyer sim.ActorID, buyerSnap *sim.
 		return stock, copresentBuyBlockedNoStock
 	case merchantConserve(snap, buyer, buyerSnap).Active:
 		return stock, copresentBuyBlockedCoin
-	case buyerSnap.Coins <= 0 && !sim.HoldsBarterableGoodsExcept(snap.ItemKinds, snap.Recipes, sim.SnapshotBarterHolder(snap, buyerSnap), kind):
+	case buyerSnap.SpendableCoins() <= 0 && !sim.HoldsBarterableGoodsExcept(snap.ItemKinds, snap.Recipes, sim.SnapshotBarterHolder(snap, buyerSnap), kind):
 		return stock, copresentBuyBlockedCoin
 	default:
 		return stock, coPresentBuyStandoff(snap, buyer, seller, buyerSnap.CurrentHuddleID, kind)

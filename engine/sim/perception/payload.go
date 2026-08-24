@@ -1421,8 +1421,18 @@ type ActorView struct {
 	InsideStructureID sim.StructureID
 	Position          sim.Position
 	CurrentHuddleID   sim.HuddleID
-	Coins             int
-	Needs             map[sim.NeedKey]int
+	// Coins is the subject's SPENDABLE coin (sim.ActorSnapshot.SpendableCoins,
+	// LLM-644) — the wallet for a resident, the wallet capped by the remaining
+	// trip budget for a visitor. Every affordability read downstream of the
+	// view (the purse line, labor-offer weighing) then agrees with the pay
+	// tools' gates by construction.
+	Coins int
+	// VisitorTakings is the coin the subject holds ABOVE what it can spend —
+	// nonzero only for a visitor whose sales have outrun his trip budget
+	// (LLM-644). The purse line renders it as takings bound for home, so the
+	// wallet the model has watched grow doesn't silently vanish from the scene.
+	VisitorTakings int
+	Needs          map[sim.NeedKey]int
 
 	// NeedThresholds is the red-tier boundary per need, copied from the
 	// snapshot so Render can classify each need value into its felt tier

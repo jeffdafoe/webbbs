@@ -109,6 +109,12 @@ type visitorPlanJSON struct {
 	// traveler pays for its room and trades on its circuit with.
 	Inventory map[string]int `json:"inventory,omitempty"`
 	Coins     int            `json:"coins,omitempty"`
+	// Remaining trip spend budget — VisitorState.SpendBudget (LLM-644). A
+	// pointer so an exhausted budget (0) still round-trips as an explicit
+	// value: absent means the row predates the field, and applyVisitorPlan
+	// rehydrates that visitor with budget = wallet (the old uncapped
+	// behavior, for that one in-flight visit).
+	SpendBudget *int `json:"spend_budget,omitempty"`
 	// Booked room(s) — Actor.RoomAccess. A visitor is firewalled out of the actor
 	// aggregate that writes room_access, so its lodging grant is NOT in that table;
 	// it rides here so the room stays booked across a restart. Crash-consistent with
@@ -163,8 +169,10 @@ func encodeVisitorPlan(a *sim.Actor) (string, error) {
 		return "{}", nil
 	}
 	vs := a.VisitorState
+	spendBudget := vs.SpendBudget
 	plan := visitorPlanJSON{
-		Coins: a.Coins,
+		Coins:       a.Coins,
+		SpendBudget: &spendBudget,
 	}
 	if vs.Trade != nil {
 		plan.Trade = &tradeErrandJSON{
@@ -275,6 +283,20 @@ func applyVisitorPlan(raw []byte, lv *sim.LoadedVisitor) error {
 		}
 	}
 	lv.Coins = plan.Coins
+	// Spend budget (LLM-644). Absent = a row written before the field
+	// existed: rehydrate with budget = wallet, the old uncapped behavior,
+	// so one in-flight legacy visit finishes as it began rather than being
+	// frozen out of buying. A negative value is out-of-band nonsense the
+	// draw arithmetic should never see (same posture as the Trade clamps
+	// above); clamp to 0.
+	budget := plan.Coins
+	if plan.SpendBudget != nil {
+		budget = *plan.SpendBudget
+	}
+	if budget < 0 {
+		budget = 0
+	}
+	lv.VisitorState.SpendBudget = budget
 	if len(plan.Inventory) > 0 {
 		lv.Inventory = make(map[sim.ItemKind]int, len(plan.Inventory))
 		for kind, qty := range plan.Inventory {

@@ -445,7 +445,7 @@ type satiationVendorCandidate struct {
 //     DROPPED. Read coin-or-goods, not coin-only (restock's gate), because the
 //     consumer can barter — a coin-only check would re-introduce false dead-ends.
 func gatherSatiationVendors(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.ActorSnapshot, need sim.NeedKey) []SatiationVendor {
-	coins := actorSnap.Coins
+	coins := actorSnap.SpendableCoins()
 	hasGoods := holdsBarterableGoods(snap, actorSnap)
 	byStructure := make(map[sim.StructureID]satiationVendorCandidate)
 	for _, vc := range findVendorConsumables(snap, actorID, need, "ask the seller") {
@@ -740,7 +740,7 @@ func gatherCoPresentPeerOffers(snap *sim.Snapshot, actorID sim.ActorID, actorSna
 	// negotiated on their turn), so the gate is a flat coin>0-or-goods, not the
 	// vendor cue's costCoins affordability tier. Reuses holdsBarterableGoods so the
 	// two buy-food affordances read the SAME goods signal (discussion-109 no-drift).
-	if actorSnap.Coins <= 0 && !holdsBarterableGoods(snap, actorSnap) {
+	if actorSnap.SpendableCoins() <= 0 && !holdsBarterableGoods(snap, actorSnap) {
 		return nil
 	}
 	wholesale := sim.BuyerWholesaleAllowance(snap.VillageObjects, snap.Recipes, actorSnap.WorkStructureID, actorSnap.RestockPolicy)

@@ -51,6 +51,8 @@ func tagFactorWorld(t *testing.T) (*sim.World, func(), time.Time) {
 			Archetype: sim.FactorArchetype, Origin: sim.FactorOrigin,
 			Phase: sim.VisitorPhaseMakingRounds,
 			Trade: &sim.TradeErrand{Direction: sim.TradeDirectionSell, Good: "coat", Counterparty: "general_store"},
+			// LLM-644: budget = purse, as at spawn.
+			SpendBudget: 200,
 		}
 	})
 	return w, stop, time.Now().UTC()

@@ -1,6 +1,7 @@
 package perception
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +133,8 @@ func travelerSettledPackScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMet
 		Inventory: map[sim.ItemKind]int{"journeycake": 4, "cheese": 1, "flour": 1, "nights_stay": 1},
 		Needs:     map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			// LLM-644: budget = purse, as at spawn.
+			SpendBudget:       75,
 			Archetype:         "provisioner",
 			Origin:            "Salem Town",
 			Disposition:       "weary",
@@ -188,6 +191,7 @@ func travelerSettledErrandGoodScenario() (*sim.Snapshot, sim.ActorID, []sim.Warr
 		Inventory:   map[sim.ItemKind]int{"nail": 9},
 		Needs:       map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 54,
 			Archetype:   "nail-buyer",
 			Origin:      "Lynn",
 			Disposition: "reserved",
@@ -255,6 +259,7 @@ func travelerErrandSettledScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantM
 		Inventory:   map[sim.ItemKind]int{"nail": 6},
 		Needs:       map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       78,
 			Archetype:         "nail-buyer",
 			Origin:            "Boston",
 			Disposition:       "weary",
@@ -319,6 +324,7 @@ func travelerRoundsMeetingHouseScenario() (*sim.Snapshot, sim.ActorID, []sim.War
 		Inventory:   map[sim.ItemKind]int{"iron": 1},
 		Needs:       map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 203,
 			Archetype:   "factor",
 			Origin:      "Boston",
 			Disposition: "warm",
@@ -391,6 +397,7 @@ func travelerBetweenLegsScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMet
 		Coins:       90,
 		Needs:       map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       90,
 			Archetype:         "nail-buyer",
 			Origin:            "Boston",
 			Disposition:       "weary",
@@ -469,6 +476,7 @@ func travelerMakingRoundsScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMe
 		Coins:             90,
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 90,
 			Archetype:   "nail-buyer",
 			Origin:      "Boston",
 			Disposition: "weary",
@@ -523,6 +531,7 @@ func travelerSeekingBedScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta
 		Inventory:         map[sim.ItemKind]int{"cheese": 4, "iron": 2},
 		Needs:             map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget: 40,
 			Archetype:   "peddler",
 			Origin:      "Boston",
 			Disposition: "weary",
@@ -969,6 +978,7 @@ func travelerFactorShipmentDeliveredScenario() (*sim.Snapshot, sim.ActorID, []si
 		},
 		Needs: map[sim.NeedKey]int{},
 		VisitorState: &sim.VisitorState{
+			SpendBudget:       180,
 			Archetype:         "factor",
 			Origin:            "Boston",
 			Disposition:       "curious",
@@ -1041,6 +1051,131 @@ func TestGoldensSettledErrandNeverPressesTheTrade(t *testing.T) {
 				t.Errorf("scenario %q: errand is settled, yet the prompt still presses %q — "+
 					"a merchant told his business is done must not also be steered to trade at his counterparty",
 					sc.name, tradeHere)
+			}
+		})
+	}
+}
+
+// travelerFactorPurseScenario builds the LLM-644 purse-split situation: a
+// mid-errand SELL factor at his counterparty's counter whose sales have outrun
+// his trip budget — wallet holds the takings, budget holds what is left of the
+// purse he arrived with. The two goldens over it pin the purse line's split and
+// spent tiers, the scene half of the fix (the pay gates are the tool half): the
+// model must be told the fat wallet is takings bound for home, or it loops
+// offers the gates refuse.
+func travelerFactorPurseScenario(wallet, budget int) func() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	return func() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+		const (
+			factorID     = sim.ActorID("vstr-4dcbca9f")
+			keeperID     = sim.ActorID("josiah")
+			generalStore = sim.StructureID("general_store")
+		)
+		now := 780 // 13:00 — mid-afternoon, errand still live
+		factor := &sim.ActorSnapshot{
+			Kind:              sim.KindNPCShared,
+			DisplayName:       "Daniel Holcomb the factor",
+			State:             sim.StateIdle,
+			Pos:               sim.TilePos{X: 94, Y: 126},
+			InsideStructureID: generalStore,
+			CurrentHuddleID:   "h1",
+			Coins:             wallet,
+			// Half the bale sold already — the wallet above is mostly its proceeds.
+			Inventory: map[sim.ItemKind]int{"iron": 5, "salt": 6, "woolens": 2},
+			Needs:     map[sim.NeedKey]int{},
+			VisitorState: &sim.VisitorState{
+				SpendBudget:       budget,
+				Archetype:         "factor",
+				Origin:            "Boston",
+				Disposition:       "curious",
+				Phase:             sim.VisitorPhaseMakingRounds,
+				VisitedBusinesses: []sim.StructureID{generalStore},
+				Trade: &sim.TradeErrand{
+					Direction:    sim.TradeDirectionSell,
+					Good:         "iron",
+					Counterparty: generalStore,
+					ShipmentQty:  10,
+					Delivered:    5,
+				},
+			},
+		}
+		keeper := &sim.ActorSnapshot{
+			Kind:               sim.KindNPCStateful,
+			DisplayName:        "Josiah Thorne",
+			Role:               "merchant",
+			State:              sim.StateIdle,
+			Pos:                sim.TilePos{X: 93, Y: 126},
+			WorkStructureID:    generalStore,
+			InsideStructureID:  generalStore,
+			CurrentHuddleID:    "h1",
+			Coins:              40,
+			Needs:              map[sim.NeedKey]int{},
+			BusinessownerState: &sim.BusinessownerState{Flavor: "merchant"},
+		}
+		snap := &sim.Snapshot{
+			LocalMinuteOfDay: &now,
+			DawnMinute:       360,
+			DuskMinute:       1080,
+			DawnDuskMinuteOK: true,
+			NeedThresholds:   sim.NeedThresholds{},
+			Actors:           map[sim.ActorID]*sim.ActorSnapshot{factorID: factor, keeperID: keeper},
+			Structures:       map[sim.StructureID]*sim.Structure{generalStore: plainStructure(generalStore, "General Store")},
+			VillageObjects: map[sim.VillageObjectID]*sim.VillageObject{
+				sim.VillageObjectID(generalStore): {ID: sim.VillageObjectID(generalStore), Pos: sim.WorldPos{X: 752, Y: 1008}},
+			},
+			Huddles: map[sim.HuddleID]*sim.Huddle{
+				"h1": {Members: map[sim.ActorID]struct{}{factorID: {}, keeperID: {}}},
+			},
+			ItemKinds: map[sim.ItemKind]*sim.ItemKindDef{
+				"iron": {Name: "iron", DisplayLabel: "Iron", DisplayLabelSingular: "iron bar", DisplayLabelPlural: "iron bars"},
+			},
+		}
+		return snap, factorID, nil
+	}
+}
+
+func init() {
+	perceptionScenarios = append(perceptionScenarios,
+		perceptionScenario{
+			name: "traveler_factor_takings_bound_home",
+			summary: "LLM-644: a SELL factor mid-errand whose bale proceeds (wallet 131) have outrun his trip " +
+				"budget (24 left of his arrival purse). The purse line renders the split — what is left to spend " +
+				"on this trip vs the takings bound for home — so the model does not read the fat wallet as buying " +
+				"power and loop offers the pay gates refuse. This is the scene half of the proceeds-recycling fix.",
+			build: travelerFactorPurseScenario(131, 24),
+		},
+		perceptionScenario{
+			name: "traveler_factor_buying_purse_spent",
+			summary: "LLM-644: the same factor with his arrival purse fully spent (budget 0, wallet 131). The " +
+				"purse line names every coin he holds as takings bound for home and his buying purse as spent, " +
+				"steering him to goods-in-trade if he still wants something — never a coin offer.",
+			build: travelerFactorPurseScenario(131, 0),
+		},
+	)
+}
+
+// TestGoldensVisitorPurseNeverShowsTakingsAsSpendable — LLM-644 cross-scenario
+// invariant. Whenever the subject is a visitor whose wallet exceeds his remaining
+// trip budget, the prompt must carry the takings-bound-home purse phrasing and
+// must NOT state the raw wallet as a plain spendable purse figure. The plain
+// figure is exactly the render that had a proceeds-flush factor looping offers
+// the pay gates refuse; stated as a property so a future purse-line rewrite
+// cannot quietly reintroduce it for any scenario in the matrix.
+func TestGoldensVisitorPurseNeverShowsTakingsAsSpendable(t *testing.T) {
+	for _, sc := range perceptionScenarios {
+		sc := sc
+		t.Run(sc.name, func(t *testing.T) {
+			snap, actorID, warrants := sc.build()
+			a := snap.Actors[actorID]
+			if a == nil || a.VisitorState == nil || a.Coins <= a.VisitorState.SpendBudget {
+				return
+			}
+			prompt := combinedPrompt(Render(Build(snap, actorID, warrants), DefaultRenderConfig()))
+			if !strings.Contains(prompt, "bound for home") {
+				t.Errorf("scenario %q: visitor wallet %d exceeds budget %d but the prompt never names the takings as bound for home",
+					sc.name, a.Coins, a.VisitorState.SpendBudget)
+			}
+			if strings.Contains(prompt, fmt.Sprintf("Coins in your purse: %d.", a.Coins)) {
+				t.Errorf("scenario %q: prompt states the raw wallet (%d) as a plain spendable purse figure", sc.name, a.Coins)
 			}
 		})
 	}

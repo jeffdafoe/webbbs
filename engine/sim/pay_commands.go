@@ -153,15 +153,15 @@ func Pay(buyerID ActorID, recipientName string, amount int, forText string, at t
 			// quoted good (a tip, a debt, an unquoted item) falls through to a
 			// plain transfer.
 			if q := findCoinQuoteForPay(w, buyer, sellerID, forText, at); q != nil {
-				if buyer.Coins < q.Amount {
+				if buyer.SpendableCoins() < q.Amount {
 					// Coin-short for the quote: redirecting to pay_with_item would just
 					// bounce on funds and loop with the right tool (code_review). Steer
 					// to the real ways forward for a broke buyer — bargain the price
 					// down, or barter goods via offer_trade — not a settlement they
 					// can't cover.
 					return nil, fmt.Errorf(
-						"%s has an open quote for %s (quote_id %d, %d coins) but you only have %d — a plain pay won't deliver the %s. Agree a lower coin price, or call offer_trade with goods you'll give and want_item %q.",
-						seller.DisplayName, q.Lines[0].ItemKind, q.ID, q.Amount, buyer.Coins,
+						"%s has an open quote for %s (quote_id %d, %d coins) but you only have %d to spend — a plain pay won't deliver the %s. Agree a lower coin price, or call offer_trade with goods you'll give and want_item %q.",
+						seller.DisplayName, q.Lines[0].ItemKind, q.ID, q.Amount, buyer.SpendableCoins(),
 						q.Lines[0].ItemKind, q.Lines[0].ItemKind,
 					)
 				}
@@ -248,10 +248,12 @@ func Pay(buyerID ActorID, recipientName string, amount int, forText string, at t
 				}
 			}
 
-			if buyer.Coins < amount {
+			// SpendableCoins, not the raw wallet (LLM-644): a visitor's bare
+			// pay draws the same trip budget as every other buy door.
+			if buyer.SpendableCoins() < amount {
 				return nil, fmt.Errorf(
-					"insufficient coins (have %d, need %d) — agree on a lower amount before paying.",
-					buyer.Coins, amount,
+					"insufficient coins (have %d to spend, need %d) — agree on a lower amount before paying.",
+					buyer.SpendableCoins(), amount,
 				)
 			}
 			// Seller balance overflow guard. amount is bounded by
@@ -274,6 +276,7 @@ func Pay(buyerID ActorID, recipientName string, amount int, forText string, at t
 			// needed like v1's executePayTransfer.
 			buyer.Coins -= amount
 			seller.Coins += amount
+			drawVisitorSpend(buyer, amount)
 
 			// LLM-557: coin a keeper hands a constable settles his town rate.
 			// Inline here, the same placement accrueStallWear takes on the sale

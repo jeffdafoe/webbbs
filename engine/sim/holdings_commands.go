@@ -108,6 +108,13 @@ func AdjustActorHoldings(id ActorID, coinsDelta int, itemDeltas []ActorInventory
 
 			// --- all validated: apply atomically ---
 			a.Coins = newCoins
+			// LLM-644: an operator coin GRANT to a visitor is meant to be
+			// spendable (the LLM-410 float precedent), so it raises the trip
+			// budget alongside the wallet. A debit needs nothing — spendable
+			// is min(wallet, budget), so the smaller wallet already caps it.
+			if a.VisitorState != nil && coinsDelta > 0 {
+				a.VisitorState.SpendBudget += coinsDelta
+			}
 			for _, c := range changes {
 				if c.qty == 0 {
 					delete(a.Inventory, c.kind) // delete-on-zero invariant

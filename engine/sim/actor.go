@@ -660,6 +660,23 @@ type VisitorState struct {
 	// resurrect the word as unspent mid-visit (the LLM-547 lesson: three deploys
 	// sat inside one innkeeper's afternoon).
 	PayloadSharedWith []ActorID
+
+	// SpendBudget is the coin this traveler may still SPEND in the village —
+	// seeded equal to the purse at spawn and drawn down by every coin he pays
+	// out, by any door (LLM-644). Sale proceeds credit Coins as always but
+	// never raise this, so what he earns here is takings bound for home, not
+	// fresh buying power. Without the split a forced-seller factor recycled
+	// his whole bale's proceeds into surplus-buying and every "drain" visit
+	// netted the village +purse; with it his spending is capped at what he
+	// arrived carrying and the coin-band SELL direction can actually drain.
+	// The one question every affordability gate asks is SpendableCoins()
+	// (min of wallet and budget — nil VisitorState means no cap); mutate only
+	// through drawVisitorSpend / refundVisitorSpend, which clamp at 0.
+	// Persisted in the visitor.plan jsonb; a pre-LLM-644 row rehydrates with
+	// budget = wallet (the old uncapped behavior, for that one in-flight
+	// visit). An operator /grant raises it alongside the wallet — fiat coin
+	// is meant to be spendable (the LLM-410 float precedent).
+	SpendBudget int
 }
 
 // VisitorPhase is the visitor's lifecycle state — a small Go-owned enum

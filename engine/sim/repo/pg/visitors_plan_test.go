@@ -33,6 +33,9 @@ func TestVisitorPlanRoundTrip(t *testing.T) {
 			PayloadSharedWith: []sim.ActorID{"hannah", "john"},
 			// LLM-455 merchant errand rides the plan jsonb.
 			Trade: &sim.TradeErrand{Direction: sim.TradeDirectionBuy, Good: "cheese", Counterparty: "str-a", Settled: true},
+			// LLM-644 trip budget rides the plan jsonb. Deliberately distinct
+			// from Coins so a codec that conflated the two would fail here.
+			SpendBudget: 17,
 		},
 	}
 
@@ -55,6 +58,9 @@ func TestVisitorPlanRoundTrip(t *testing.T) {
 	}
 	if lv.Coins != 42 {
 		t.Errorf("Coins = %d; want 42", lv.Coins)
+	}
+	if lv.VisitorState.SpendBudget != 17 {
+		t.Errorf("SpendBudget = %d; want 17", lv.VisitorState.SpendBudget)
 	}
 	if lv.VisitorState.Trade == nil {
 		t.Fatal("Trade errand did not round-trip through the plan jsonb")
@@ -165,5 +171,50 @@ func TestVisitorPlanEmpty(t *testing.T) {
 	}
 	if lv2.Coins != 0 || len(lv2.Inventory) != 0 || len(lv2.RoomAccess) != 0 {
 		t.Errorf("empty actor did not round-trip clean: %+v", lv2)
+	}
+}
+
+// TestVisitorPlanSpendBudgetDecode — the LLM-644 decode matrix for the trip
+// budget. Absent (a pre-LLM-644 row) rehydrates with budget = wallet, the old
+// uncapped behavior, so one in-flight legacy visit finishes as it began. An
+// explicit 0 stays 0 — a spent-out factor must not refill by riding a deploy
+// (the pointer-typed JSON field exists exactly so 0 and absent stay distinct).
+// A negative value (out-of-band edit) clamps to 0.
+func TestVisitorPlanSpendBudgetDecode(t *testing.T) {
+	cases := []struct {
+		name string
+		plan string
+		want int
+	}{
+		{"absent defaults to wallet", `{"coins": 42}`, 42},
+		{"explicit zero stays zero", `{"coins": 42, "spend_budget": 0}`, 0},
+		{"explicit value kept", `{"coins": 42, "spend_budget": 9}`, 9},
+		{"negative clamps to zero", `{"coins": 42, "spend_budget": -5}`, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			lv := &sim.LoadedVisitor{VisitorState: &sim.VisitorState{}}
+			if err := applyVisitorPlan([]byte(tc.plan), lv); err != nil {
+				t.Fatalf("applyVisitorPlan: %v", err)
+			}
+			if lv.VisitorState.SpendBudget != tc.want {
+				t.Errorf("SpendBudget = %d; want %d", lv.VisitorState.SpendBudget, tc.want)
+			}
+		})
+	}
+
+	// A spent budget survives the encode side too: 0 must be written
+	// explicitly, not dropped by omitempty into the legacy-default path.
+	spent := &sim.Actor{ID: "vstr-0000ffff", Coins: 42, VisitorState: &sim.VisitorState{SpendBudget: 0}}
+	js, err := encodeVisitorPlan(spent)
+	if err != nil {
+		t.Fatalf("encodeVisitorPlan: %v", err)
+	}
+	lv := &sim.LoadedVisitor{VisitorState: &sim.VisitorState{}}
+	if err := applyVisitorPlan([]byte(js), lv); err != nil {
+		t.Fatalf("applyVisitorPlan: %v", err)
+	}
+	if lv.VisitorState.SpendBudget != 0 {
+		t.Errorf("spent budget round-trip = %d; want 0 (encode must write the field explicitly)", lv.VisitorState.SpendBudget)
 	}
 }

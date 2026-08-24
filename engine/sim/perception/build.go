@@ -978,7 +978,8 @@ func buildActorView(snap *sim.Snapshot, actorID sim.ActorID, a *sim.ActorSnapsho
 		InsideStructureID:      a.InsideStructureID,
 		Position:               sim.Position{X: a.Pos.X, Y: a.Pos.Y},
 		CurrentHuddleID:        a.CurrentHuddleID,
-		Coins:                  a.Coins,
+		Coins:                  a.SpendableCoins(),
+		VisitorTakings:         a.Coins - a.SpendableCoins(),
 		Needs:                  needs,
 		NeedThresholds:         snap.NeedThresholds,
 		ActiveDwellCredits:     buildActiveDwellCredits(snap, a),
@@ -3081,7 +3082,7 @@ func atResolvableSatiationSource(snap *sim.Snapshot, actorID sim.ActorID, a *sim
 		// so coins>0 is the affordability proxy — it cleanly excludes the broke
 		// homeless-blacksmith case while admitting the ordinary "I have money, let
 		// me buy a drink" one.
-		if a.Coins > 0 {
+		if a.SpendableCoins() > 0 {
 			for _, vc := range findVendorConsumables(snap, actorID, need, "") {
 				if vc.StructureID != "" && actorAtStructure(snap, a, vc.StructureID) {
 					return true
@@ -3189,7 +3190,7 @@ func buildNeedRedirect(snap *sim.Snapshot, actorSnap *sim.ActorSnapshot, sat *Sa
 		return nil
 	}
 	for _, nv := range pressingFirst(snap, sat.Needs) {
-		if r := needRedirectFor(nv, actorSnap.Coins); r != nil {
+		if r := needRedirectFor(nv, actorSnap.SpendableCoins()); r != nil {
 			return r
 		}
 	}
