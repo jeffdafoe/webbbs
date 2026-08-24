@@ -1040,3 +1040,55 @@ func TestFinalizeLoad_RevertsStrandedLaboringActor(t *testing.T) {
 		t.Errorf("LaboringUntil = %v, want nil (cleared on load)", a.LaboringUntil)
 	}
 }
+
+// TestEvaluateLaborLedgerSweep_VisitorEmployerBudgetSpentUnpaid — the LLM-644
+// labor door: a visitor employer whose WALLET covers the reward but whose trip
+// budget was spent through other doors after accepting resolves the completion
+// unpaid (failed_unavailable), exactly like a broke resident employer. The
+// settle-time employerCanCoverLaborReward re-check reads SpendableCoins, so the
+// coin transfer is unreachable past the budget — the hard cap holds at this
+// door without any escrow.
+func TestEvaluateLaborLedgerSweep_VisitorEmployerBudgetSpentUnpaid(t *testing.T) {
+	w, stop := buildLaborWorld(t, "h1", "sc1", []laborActor{
+		{id: "ezekiel", displayName: "Ezekiel", huddleID: "h1", worker: true},
+		{id: "elias", displayName: "Elias Drum", huddleID: "h1", coins: 40}, // wallet covers the 10 reward
+	})
+	defer stop()
+	events := captureLaborEvents(t, w)
+	now := time.Now().UTC()
+	until := now.Add(-time.Minute) // window elapsed
+	seedLaborOffer(t, w, sim.LaborOffer{
+		ID: 1, WorkerID: "ezekiel", EmployerID: "elias",
+		Reward: 10, DurationMin: 30, State: sim.LaborStateWorking,
+		HuddleID: "h1", SceneID: "sc1", WorkingUntil: &until,
+	})
+	if _, err := w.Send(sim.Command{Fn: func(world *sim.World) (any, error) {
+		// Budget 3: spent down below the reward since the accept.
+		world.Actors["elias"].VisitorState = &sim.VisitorState{SpendBudget: 3}
+		a := world.Actors["ezekiel"]
+		u := until
+		a.LaborID = 1
+		a.LaboringUntil = &u
+		a.State = sim.StateLaboring
+		return nil, nil
+	}}); err != nil {
+		t.Fatalf("seed visitor employer + worker mirror: %v", err)
+	}
+
+	if _, err := w.Send(sim.EvaluateLaborLedgerSweep(now)); err != nil {
+		t.Fatalf("EvaluateLaborLedgerSweep: %v", err)
+	}
+	o := readLaborLedger(t, w)[1]
+	if o.State != sim.LaborStateFailedUnavailable {
+		t.Errorf("offer State = %q, want failed_unavailable (visitor budget spent)", o.State)
+	}
+	if got := readActor(t, w, "elias").Coins; got != 40 {
+		t.Errorf("employer coins = %d, want 40 (no debit on unpaid)", got)
+	}
+	if got := readActor(t, w, "ezekiel").Coins; got != 0 {
+		t.Errorf("worker coins = %d, want 0 (unpaid)", got)
+	}
+	if len(events.Resolved) != 1 || events.Resolved[0].TerminalState != sim.LaborTerminalStateFailedUnavailable {
+		t.Errorf("LaborResolved = %+v", events.Resolved)
+	}
+}

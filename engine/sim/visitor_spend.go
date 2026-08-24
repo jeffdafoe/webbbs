@@ -1,5 +1,7 @@
 package sim
 
+import "math"
+
 // Visitor spend budget (LLM-644). A traveler's buying power is what he
 // ARRIVED with, not what the village has since paid him: SpendBudget seeds
 // equal to the purse at spawn and only ever goes down as he pays coin out.
@@ -70,9 +72,16 @@ func drawVisitorSpend(a *Actor, amount int) {
 // refundVisitorSpend restores budget for coin returned to a visitor buyer
 // (an order refund). Bounded in practice by what the refunded charge drew;
 // no cap is kept because the budget is a remaining-allowance counter, not
-// a mirror of the seed purse.
+// a mirror of the seed purse. The addition saturates at MaxInt (code_review):
+// the wallet credit is overflow-guarded by its caller, but this independent
+// counter is not, and a wrapped-negative budget would read as spendable 0
+// with a fat wallet — a silently frozen visitor.
 func refundVisitorSpend(a *Actor, amount int) {
 	if a == nil || a.VisitorState == nil || amount <= 0 {
+		return
+	}
+	if a.VisitorState.SpendBudget > math.MaxInt-amount {
+		a.VisitorState.SpendBudget = math.MaxInt
 		return
 	}
 	a.VisitorState.SpendBudget += amount

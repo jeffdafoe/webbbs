@@ -1,6 +1,9 @@
 package sim
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 // visitor_spend_internal_test.go — unit coverage for the LLM-644 trip-budget
 // primitives. The door-level behavior (Pay's gate, the plan codec, spawn
@@ -60,6 +63,14 @@ func TestDrawVisitorSpend(t *testing.T) {
 		t.Errorf("SpendBudget after no-op draws = %d; want 0", v.VisitorState.SpendBudget)
 	}
 	drawVisitorSpend(nil, 5)
+}
+
+func TestRefundVisitorSpendSaturates(t *testing.T) {
+	v := &Actor{VisitorState: &VisitorState{SpendBudget: math.MaxInt - 2}}
+	refundVisitorSpend(v, 5)
+	if v.VisitorState.SpendBudget != math.MaxInt {
+		t.Errorf("SpendBudget = %d; want saturation at MaxInt, not a wrap", v.VisitorState.SpendBudget)
+	}
 }
 
 func TestRefundVisitorSpend(t *testing.T) {
