@@ -24,6 +24,16 @@ import (
 //
 // Helpers: buildQuoteTestWorld / captureSceneQuoteCreated (scene_quote_test.go),
 // rememberSoldTo (pay_with_item_trade_churn_test.go), mustSend.
+//
+// Accepted temporal residual (code_review): a targeted quote that was ACTIVE
+// before the first-leg sale predates the memory, is not invalidated by it, and
+// can still open the buyer-side hatch — that behavior is the one
+// TestPayWithItem_TradeChurnGate's hatch case pins. The window is narrow by
+// construction: a quote lives SceneQuoteTTLDefault (10 min) in ONE scene, and
+// while it stands the LLM-189 arm-1 gate refuses the quote-poster buying that
+// kind off that target IN that scene — so the ordering needs a same-kind trade
+// in a different scene and a return, all inside the TTL. Every observed churn
+// leg ran 40–120 minutes apart in one scene.
 
 // buildQuoteChurnWorld seeds the live shape: a factor sold Josiah ale earlier
 // (the memory sits on the factor), and Josiah now holds the stock.
@@ -65,6 +75,7 @@ func TestSceneQuoteCreate_ChurnTargetRejected(t *testing.T) {
 		defer stop()
 		rememberSoldTo(t, w, "factor", "josiah", "ale", at.Add(-time.Hour))
 
+		captured := captureSceneQuoteCreated(t, w)
 		_, err := w.Send(sim.SceneQuoteCreate("josiah", []sim.QuoteLineInput{{ItemName: "bread", Qty: 1}, {ItemName: "ale", Qty: 1}}, 6, false, "Roger the factor", nil, at))
 		if err == nil || !strings.Contains(err.Error(), wantSteer) {
 			t.Fatalf("a bundle with a churn line must be refused: err = %v", err)
@@ -72,6 +83,37 @@ func TestSceneQuoteCreate_ChurnTargetRejected(t *testing.T) {
 		if !strings.Contains(err.Error(), "ale") {
 			t.Errorf("the reject should name the offending kind: %v", err)
 		}
+		if len(*captured) != 0 {
+			t.Errorf("a bundle quote was minted despite the churn reject: %+v", *captured)
+		}
+	})
+
+	// The gate sits BEFORE gate 9 (duplicate-key supersede) on purpose: a
+	// refused churn quote must not displace an otherwise valid active quote
+	// sharing its key. If the gate ran later, the rejection would leave a
+	// superseded hole where a standing offer used to be.
+	t.Run("churn_rejection_does_not_supersede_an_existing_quote", func(t *testing.T) {
+		w, stop, at := buildQuoteChurnWorld(t)
+		defer stop()
+		seedQuote(t, w, sim.SceneQuote{
+			ID: 50, SceneID: "sc1", SellerID: "josiah", TargetBuyer: "factor",
+			Lines: []sim.QuoteLine{{ItemKind: "ale", Qty: 1}}, Amount: 4,
+			State: sim.SceneQuoteStateActive, CreatedAt: at.Add(-2 * time.Minute), ExpiresAt: at.Add(8 * time.Minute),
+		})
+		rememberSoldTo(t, w, "factor", "josiah", "ale", at.Add(-time.Hour))
+
+		_, err := w.Send(sim.SceneQuoteCreate("josiah", []sim.QuoteLineInput{{ItemName: "ale", Qty: 1}}, 5, false, "Roger the factor", nil, at))
+		if err == nil || !strings.Contains(err.Error(), wantSteer) {
+			t.Fatalf("expected the churn reject: err = %v", err)
+		}
+		mustSend(t, w, func(world *sim.World) {
+			q := world.Quotes[50]
+			if q == nil || q.State != sim.SceneQuoteStateActive {
+				t.Errorf("the pre-existing quote must survive a refused replacement: %+v", q)
+			} else if q.Amount != 4 {
+				t.Errorf("the pre-existing quote must be unchanged, amount = %d", q.Amount)
+			}
+		})
 	})
 
 	// The cases that keep ordinary commerce whole.
@@ -96,6 +138,20 @@ func TestSceneQuoteCreate_ChurnTargetRejected(t *testing.T) {
 
 		if _, err := w.Send(sim.SceneQuoteCreate("josiah", []sim.QuoteLineInput{{ItemName: "ale", Qty: 1}}, 4, false, "", nil, at)); err != nil {
 			t.Fatalf("a public quote must not be churn-gated: %v", err)
+		}
+	})
+
+	// The exact boundary: Observed.Active requires age < ttl, so a memory aged
+	// exactly SoldToPeerMemoryTTL is spent. Both gates share ActorRecentlySoldTo,
+	// so the creation gate and the pay-side gate cannot disagree by a tick — this
+	// pins the contract the shared predicate defines.
+	t.Run("a_memory_aged_exactly_the_ttl_is_spent", func(t *testing.T) {
+		w, stop, at := buildQuoteChurnWorld(t)
+		defer stop()
+		rememberSoldTo(t, w, "factor", "josiah", "ale", at.Add(-sim.SoldToPeerMemoryTTL))
+
+		if _, err := w.Send(sim.SceneQuoteCreate("josiah", []sim.QuoteLineInput{{ItemName: "ale", Qty: 1}}, 4, false, "Roger the factor", nil, at)); err != nil {
+			t.Fatalf("at exactly the TTL the memory is spent and the quote stands: %v", err)
 		}
 	})
 
