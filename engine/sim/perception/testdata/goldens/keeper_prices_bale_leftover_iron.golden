@@ -1,0 +1,24 @@
+# Your turn
+
+## Since your last turn
+(nothing specific — this is a routine check-in)
+
+
+## You
+Coins in your purse: 12.
+You are carrying: sacks of flour (x10), bars of iron (x2).
+
+## Around you
+You are inside the General Store, your workplace, with the blacksmith.
+It is morning in the village.
+
+You're at your workplace.
+
+It is your working hours and you are at your post — stay and look after your work; you close at 8 in the evening.
+
+## What your wares fetch
+What your wares fetch in coin — use it to set a fair price or weigh a trade:
+- Flour: 3 to 4 coins each.
+- Iron: 2 to 3 coins each; you have lately paid about 5 coins each for it; of late you have sold for about 3 coins each — selling below your costs loses you coin; ask 7 coins or more at your counter.
+
+Weigh what's in front of you — obligations and pressing needs come before idle matters. Choose one action, then call done() when nothing pressing remains.

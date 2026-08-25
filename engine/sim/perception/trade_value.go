@@ -551,6 +551,33 @@ func buildTradeValue(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.Act
 	for _, e := range actorSnap.RestockPolicy.BuyEntries() {
 		valueGood(e.Item, true)
 	}
+	// LLM-646: goods actually ON HAND are priced too, policy entry or not.
+	// The buy directory already defines vendorship structurally — a seller is
+	// whoever HOLDS the good, qty > 0 (eachVendorOffer, consumable_vendors.go)
+	// — so buyers were being routed to stock whose holder was never shown a
+	// price for it: this cue alone scoped by restock policy, and the two
+	// surfaces disagreed about what the actor's trade is. Live 2026-08-25:
+	// Josiah Thorne resold 40 bars of factor-bale iron at ~3 coins each
+	// against a ~5-coin import cost — his render carried lines for all 16
+	// policy kinds and NONE for the iron he was holding and trading daily
+	// (salt and thread likewise, priced blind). This walk closes the
+	// divergence: the sellable set is what you hold, same as the directory.
+	// The directory's buyer-scoped filters (wholesale allowance, workplace
+	// routing) deliberately don't apply — an actor may always price its own
+	// stock. valueGood's own gates keep the addition quiet where it should
+	// be: an uncataloged or unpriced kind renders nothing, a making or worn
+	// garment renders its LLM-636 reservation line instead of a pitch, and
+	// seen-dedup leaves every policy kind exactly as the walks above valued
+	// it. Resale semantics on purpose: held-but-not-produced stock was bought
+	// or bartered in, so the LLM-226 cost-basis clause and the LLM-627 ask
+	// floor apply — the anchor follows the goods. Map iteration order is
+	// irrelevant: inclusion is total over held kinds and the sort below fixes
+	// the render order.
+	for item, qty := range actorSnap.Inventory {
+		if qty > 0 {
+			valueGood(item, true)
+		}
+	}
 	if len(items) == 0 && reserve == nil {
 		return nil
 	}
