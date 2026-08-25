@@ -1,7 +1,6 @@
 package perception
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -119,14 +118,18 @@ func keeperPricesBaleLeftoverIron() (*sim.Snapshot, sim.ActorID, []sim.WarrantMe
 }
 
 // TestGoldensEveryHeldPricedGoodRendersAWaresLine is the matrix form of the
-// LLM-646 property: whenever the wares-fetch section renders for a scenario's
-// subject, every kind that subject HOLDS (qty > 0) with a positive catalog
-// price must appear in the section — as a priced line, a reservation, an
-// earmark, or the wholesale channel, but never silently absent. Silence is the
-// defect this ticket fixes: a good the buy directory offers to buyers while
-// its holder prices it blind.
+// LLM-646 property: whenever the wares cue builds for a scenario's subject,
+// every kind that subject HOLDS (qty > 0) with a positive catalog price must
+// be represented in the view — as a priced item, a reservation, an earmark,
+// or the wholesale channel (all of which are TradeValueItems keyed by kind),
+// or the nail-specific repair reserve — never silently absent. Asserted on
+// buildTradeValue's structured output by itemKind, NOT on rendered text: a
+// display label is not an identifier (two kinds may share one, and a label
+// can occur inside another line's prose), so a text match could pass with the
+// kind genuinely missing (code_review). The golden covers the rendering.
+// Silence is the defect this ticket fixes: a good the buy directory offers to
+// buyers while its holder prices it blind.
 func TestGoldensEveryHeldPricedGoodRendersAWaresLine(t *testing.T) {
-	const header = "## What your wares fetch"
 	for _, sc := range perceptionScenarios {
 		sc := sc
 		t.Run(sc.name, func(t *testing.T) {
@@ -139,11 +142,9 @@ func TestGoldensEveryHeldPricedGoodRendersAWaresLine(t *testing.T) {
 			if v == nil || len(v.Items) == 0 {
 				return // cue absent for this scenario — nothing to check
 			}
-			var b strings.Builder
-			renderTradeValue(&b, v)
-			section := b.String()
-			if !strings.Contains(section, header) {
-				return
+			byKind := make(map[sim.ItemKind]bool, len(v.Items))
+			for _, it := range v.Items {
+				byKind[it.itemKind] = true
 			}
 			for kind, qty := range actorSnap.Inventory {
 				if qty <= 0 {
@@ -153,10 +154,13 @@ func TestGoldensEveryHeldPricedGoodRendersAWaresLine(t *testing.T) {
 				if recipe == nil || (recipe.RetailPrice <= 0 && recipe.WholesalePrice <= 0) {
 					continue // unpriced — legitimately silent
 				}
-				label := itemDisplayLabel(snap, kind)
-				if !strings.Contains(section, label) {
-					t.Errorf("held priced good %q (label %q) has no line in the wares section:\n%s", kind, label, section)
+				if byKind[kind] {
+					continue
 				}
+				if kind == sim.NailItemKind && v.RepairReserve != nil {
+					continue // the mend earmark owns the nails' line
+				}
+				t.Errorf("held priced good %q has no TradeValueItem in the wares view: %+v", kind, v.Items)
 			}
 		})
 	}

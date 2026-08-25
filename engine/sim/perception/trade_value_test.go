@@ -1288,3 +1288,29 @@ func TestBuildTradeValue_HeldGoodGates(t *testing.T) {
 		t.Fatalf("want exactly the one cheese line, got %+v", v)
 	}
 }
+
+// TestBuildTradeValue_HeldGoodNoWorkplace locks the intended breadth of the
+// LLM-646 held-goods walk: pricing your own stock needs no shop. The buy
+// DIRECTORY requires a resolvable workplace because it routes buyers
+// somewhere; the wares cue prices the holder's own goods for the holder, so
+// an actor with a policy but no WorkStructureID still values what it carries
+// (the sellable-set predicate — holds, qty>0 — is shared with the directory;
+// the directory's routing filters deliberately are not).
+func TestBuildTradeValue_HeldGoodNoWorkplace(t *testing.T) {
+	subj := &sim.ActorSnapshot{
+		RestockPolicy: buyPolicy("cheese", 10),
+		Inventory:     map[sim.ItemKind]int{"iron": 2},
+	}
+	snap := &sim.Snapshot{
+		PublishedAt: time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC),
+		Actors:      map[sim.ActorID]*sim.ActorSnapshot{"pedlar": subj},
+		Recipes: map[sim.ItemKind]*sim.ItemRecipe{
+			"cheese": {OutputItem: "cheese", WholesalePrice: 3, RetailPrice: 6},
+			"iron":   {OutputItem: "iron", WholesalePrice: 2, RetailPrice: 3},
+		},
+	}
+	v := buildTradeValue(snap, "pedlar", subj, true)
+	if v == nil || len(v.Items) != 2 {
+		t.Fatalf("a workplace-less holder must still price held stock, got %+v", v)
+	}
+}

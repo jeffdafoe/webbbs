@@ -560,11 +560,13 @@ func buildTradeValue(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.Act
 	// Josiah Thorne resold 40 bars of factor-bale iron at ~3 coins each
 	// against a ~5-coin import cost — his render carried lines for all 16
 	// policy kinds and NONE for the iron he was holding and trading daily
-	// (salt and thread likewise, priced blind). This walk closes the
-	// divergence: the sellable set is what you hold, same as the directory.
-	// The directory's buyer-scoped filters (wholesale allowance, workplace
-	// routing) deliberately don't apply — an actor may always price its own
-	// stock. valueGood's own gates keep the addition quiet where it should
+	// (salt and thread likewise, priced blind). This walk shares the
+	// directory's sellable-set predicate — holds, qty > 0 — and is
+	// deliberately BROADER than directory vendorship: the directory's
+	// buyer-scoped filters (wholesale allowance, resolvable-workplace
+	// routing) exist to route buyers somewhere, while this cue prices the
+	// holder's own goods for the holder, which needs no shop. An actor may
+	// always price its own stock. valueGood's own gates keep the addition quiet where it should
 	// be: an uncataloged or unpriced kind renders nothing, a making or worn
 	// garment renders its LLM-636 reservation line instead of a pitch, and
 	// seen-dedup leaves every policy kind exactly as the walks above valued
