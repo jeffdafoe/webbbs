@@ -1208,3 +1208,109 @@ func TestBuildTradeValue_MendClaimBeatsBenchReserve(t *testing.T) {
 		t.Errorf("bench reservation rendered alongside the mend claim:\n%s", out)
 	}
 }
+
+// LLM-646 — the sellable set is what you HOLD, converging this cue on the buy
+// directory's structural vendorship (eachVendorOffer: holds, qty>0). The live
+// case: Josiah resold factor-bale iron priced blind, because iron had no
+// restock-policy entry and this cue's walk was policy-scoped while buyers were
+// routed to his iron off his inventory.
+
+// TestBuildTradeValue_HeldGoodOffPolicy: a priced good the actor HOLDS but
+// neither produces nor has a buy entry for renders with full resale semantics —
+// the cost-basis clause and the LLM-627 ask floor — exactly as if it were
+// bought-in stock, because it is.
+func TestBuildTradeValue_HeldGoodOffPolicy(t *testing.T) {
+	subj := &sim.ActorSnapshot{
+		RestockPolicy: buyPolicy("cheese", 10),
+		Inventory:     map[sim.ItemKind]int{"iron": 2},
+	}
+	published := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	buys := sim.NewRingBuffer[sim.PriceObservation](4)
+	buys.Push(sim.PriceObservation{BuyerID: "josiah", Amount: 10, Qty: 2, Consumers: 1, At: published.Add(-24 * time.Hour)})
+	snap := &sim.Snapshot{
+		PublishedAt: published,
+		Actors:      map[sim.ActorID]*sim.ActorSnapshot{"josiah": subj},
+		Recipes: map[sim.ItemKind]*sim.ItemRecipe{
+			"cheese": {OutputItem: "cheese", WholesalePrice: 3, RetailPrice: 6},
+			"iron":   {OutputItem: "iron", WholesalePrice: 2, RetailPrice: 3},
+		},
+		PriceBook: map[sim.PriceBookKey]*sim.RingBuffer[sim.PriceObservation]{
+			{SellerID: "factor", Item: "iron"}: buys,
+		},
+	}
+	v := buildTradeValue(snap, "josiah", subj, true)
+	if v == nil || len(v.Items) != 2 {
+		t.Fatalf("want cheese + held iron, got %+v", v)
+	}
+	var iron *TradeValueItem
+	for i := range v.Items {
+		if v.Items[i].itemKind == "iron" {
+			iron = &v.Items[i]
+		}
+	}
+	if iron == nil {
+		t.Fatalf("held off-policy iron missing from wares-worth: %+v", v.Items)
+	}
+	// Paid 10/2 = 5; cost-plus 5+ceil(5/4) = 7, above retail 3 so unclamped —
+	// pass-through pricing working: the import cost, not the band, sets the ask.
+	if iron.Low != 2 || iron.High != 3 || iron.PaidUnit != 5 || iron.AskUnit != 7 {
+		t.Fatalf("iron item wrong: %+v", *iron)
+	}
+	var b strings.Builder
+	renderTradeValue(&b, v)
+	if !strings.Contains(b.String(), "iron: 2 to 3 coins each; you have lately paid about 5 coins each for it — ask 7 coins or more at your counter; your shop lives on the difference.") {
+		t.Errorf("held iron must carry the cost anchor and ask floor:\n%s", b.String())
+	}
+}
+
+// TestBuildTradeValue_HeldGoodGates: the inventory walk inherits valueGood's
+// gates unchanged — an uncataloged kind renders nothing, zero stock renders
+// nothing, and a kind already valued off the policy is not doubled.
+func TestBuildTradeValue_HeldGoodGates(t *testing.T) {
+	subj := &sim.ActorSnapshot{
+		RestockPolicy: buyPolicy("cheese", 10),
+		Inventory: map[sim.ItemKind]int{
+			"cheese":  4, // also a policy kind — must not double
+			"mystery": 3, // no catalog entry — must stay silent
+			"iron":    0, // zero stock — must stay silent
+		},
+	}
+	snap := &sim.Snapshot{
+		PublishedAt: time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC),
+		Actors:      map[sim.ActorID]*sim.ActorSnapshot{"josiah": subj},
+		Recipes: map[sim.ItemKind]*sim.ItemRecipe{
+			"cheese": {OutputItem: "cheese", WholesalePrice: 3, RetailPrice: 6},
+			"iron":   {OutputItem: "iron", WholesalePrice: 2, RetailPrice: 3},
+		},
+	}
+	v := buildTradeValue(snap, "josiah", subj, true)
+	if v == nil || len(v.Items) != 1 || v.Items[0].itemKind != "cheese" {
+		t.Fatalf("want exactly the one cheese line, got %+v", v)
+	}
+}
+
+// TestBuildTradeValue_HeldGoodNoWorkplace locks the intended breadth of the
+// LLM-646 held-goods walk: pricing your own stock needs no shop. The buy
+// DIRECTORY requires a resolvable workplace because it routes buyers
+// somewhere; the wares cue prices the holder's own goods for the holder, so
+// an actor with a policy but no WorkStructureID still values what it carries
+// (the sellable-set predicate — holds, qty>0 — is shared with the directory;
+// the directory's routing filters deliberately are not).
+func TestBuildTradeValue_HeldGoodNoWorkplace(t *testing.T) {
+	subj := &sim.ActorSnapshot{
+		RestockPolicy: buyPolicy("cheese", 10),
+		Inventory:     map[sim.ItemKind]int{"iron": 2},
+	}
+	snap := &sim.Snapshot{
+		PublishedAt: time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC),
+		Actors:      map[sim.ActorID]*sim.ActorSnapshot{"pedlar": subj},
+		Recipes: map[sim.ItemKind]*sim.ItemRecipe{
+			"cheese": {OutputItem: "cheese", WholesalePrice: 3, RetailPrice: 6},
+			"iron":   {OutputItem: "iron", WholesalePrice: 2, RetailPrice: 3},
+		},
+	}
+	v := buildTradeValue(snap, "pedlar", subj, true)
+	if v == nil || len(v.Items) != 2 {
+		t.Fatalf("a workplace-less holder must still price held stock, got %+v", v)
+	}
+}
