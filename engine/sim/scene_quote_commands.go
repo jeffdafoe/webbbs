@@ -326,6 +326,46 @@ func SceneQuoteCreate(
 				}
 			}
 
+			// LLM-645: seller-side churn gate — the other half of the LLM-555
+			// buy-back memory. The buyer-side gate (pay_with_item_commands.go)
+			// refuses buying a good back off the person you sold it to within
+			// SoldToPeerMemoryTTL, but it deliberately stands aside when the
+			// counterparty holds an active targeted quote for that kind (the
+			// LLM-551 escape hatch: a posted quote reads as "I do mean to sell
+			// you this"). A vendor pair defeats that in practice, because
+			// vendors QUOTE: the buyer of the first leg posts the reverse
+			// offer himself and hands the original seller the hatch key. Live
+			// 2026-08-24: the factor sold Josiah 3 woolens at 19:36, Josiah
+			// posted him a targeted quote for those woolens, and the factor
+			// took it (quote_id 13) at 20:19 — straight through the hatch;
+			// Josiah then re-bought them at 20:36 off the factor's bundle
+			// quote. Three legs of the same woolens inside an hour, and every
+			// churn case in the ledger since the gate shipped is this shape.
+			//
+			// So the quote itself is refused at creation: a TARGETED quote for
+			// a kind the target sold the seller within the TTL is the churn's
+			// first move, and without it the buyer-side gate holds — a PUBLIC
+			// quote never opens the hatch (activeTargetedQuoteOffers requires
+			// TargetBuyer). The memory consulted is the one LLM-555 already
+			// stamps on the TARGET ("I sold kind to this seller"); no new
+			// state. Kind-scoped like the buyer gate: inventory is fungible,
+			// so "these exact units" has no meaning — quoting the kind to
+			// ANYONE ELSE stays untouched, which keeps the distributor whole.
+			// A PC target carries no such memory (the capture subscriber skips
+			// non-agent sellers), so quoting at a player is never gated here.
+			if targetBuyerID != "" {
+				if target, ok := w.Actors[targetBuyerID]; ok {
+					for _, ln := range resolvedLines {
+						if ActorRecentlySoldTo(target, sellerID, ln.ItemKind, at) {
+							return nil, fmt.Errorf(
+								"you bought %s off %s a short while ago — you don't offer it straight back to them. Quote it to another buyer.",
+								ln.ItemKind, target.DisplayName,
+							)
+						}
+					}
+				}
+			}
+
 			// Gate 9: duplicate-key resolution. Non-Amount key —
 			// the legitimate use case for "same key, new amount"
 			// IS re-pricing. Replace any matching active quote in
