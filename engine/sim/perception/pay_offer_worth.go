@@ -94,26 +94,49 @@ func offerSideValue(unit, qty int) (int64, bool) {
 // may disregard, and he keeps accept_pay either way. Pricing transformation value is
 // a redesign, not a clause.
 func offerItemUnitWorth(snap *sim.Snapshot, actorID sim.ActorID, kind sim.ItemKind) int {
+	worth, _ := offerItemUnitWorthSource(snap, actorID, kind)
+	return worth
+}
+
+// worthSource is which rung of offerItemUnitWorth's resolution ladder produced a
+// figure (LLM-647). The pack-worth cue words each figure by its provenance — a
+// purchase-derived number is what the keeper has been PAYING, and presenting it
+// as what the good "fetches from your counter" would launder a past overpayment
+// into a retail realization (code_review, LLM-647).
+type worthSource int
+
+const (
+	worthNone worthSource = iota
+	worthFromSales
+	worthFromPurchases
+	worthFromCatalog
+)
+
+// offerItemUnitWorthSource is offerItemUnitWorth with the resolution rung kept:
+// the same realized-first ladder, returning WHERE the figure came from alongside
+// the figure. The single resolver both callers share — the offer verdict discards
+// the source (its clause carries no numbers), the pack-worth cue words by it.
+func offerItemUnitWorthSource(snap *sim.Snapshot, actorID sim.ActorID, kind sim.ItemKind) (int, worthSource) {
 	if snap == nil {
-		return 0
+		return 0, worthNone
 	}
 	if units, coins := sellerRecentSales(snap, actorID, kind, restockSalesWindow); units > 0 && coins > 0 {
-		return (coins + units/2) / units
+		return (coins + units/2) / units, worthFromSales
 	}
 	if units, coins := buyerRecentPurchases(snap, actorID, kind, restockSalesWindow); units > 0 && coins > 0 {
-		return (coins + units/2) / units
+		return (coins + units/2) / units, worthFromPurchases
 	}
 	recipe := snap.Recipes[kind]
 	if recipe == nil {
-		return 0
+		return 0, worthNone
 	}
 	if recipe.WholesalePrice > 0 {
-		return recipe.WholesalePrice
+		return recipe.WholesalePrice, worthFromCatalog
 	}
 	if recipe.RetailPrice > 0 {
-		return recipe.RetailPrice
+		return recipe.RetailPrice, worthFromCatalog
 	}
-	return 0
+	return 0, worthNone
 }
 
 // offerWorthOf judges one pending offer. Barter only: an offer paid purely in coin
