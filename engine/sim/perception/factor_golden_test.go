@@ -34,7 +34,10 @@ func init() {
 			name: "distributor_views_factor",
 			summary: "LLM-455: the distributor's own view with a factor co-present. '## A trader's come to deal' " +
 				"tells the keeper who he is and that he deals both ways, and names pay_with_item for the leg the " +
-				"keeper drives (buying the factor's bale).",
+				"keeper drives (buying the factor's bale). LLM-647: the cue lists the factor's actual pack with " +
+				"the keeper's own worth per good (catalog-seeded here — coat and cloak price, the silver_locket " +
+				"doesn't and renders without a figure) plus the weigh-his-asks counsel, so an above-market ask " +
+				"has counter-pressure in the scene.",
 			build: distributorViewsFactorScenario,
 		},
 	)
@@ -167,6 +170,13 @@ func distributorViewsFactorScenario() (*sim.Snapshot, sim.ActorID, []sim.Warrant
 		Actors:           map[sim.ActorID]*sim.ActorSnapshot{factorID: factor, josiahID: josiah},
 		Structures:       structs,
 		VillageObjects:   vobjs,
+		// Catalog seeds for the LLM-647 pack-worth line: the keeper has no ledger
+		// history here, so coat and cloak price off the catalog while the
+		// silver_locket (no recipe) stays unpriced and must render without a figure.
+		Recipes: map[sim.ItemKind]*sim.ItemRecipe{
+			"coat":  {WholesalePrice: 5},
+			"cloak": {WholesalePrice: 4},
+		},
 		Huddles: map[sim.HuddleID]*sim.Huddle{
 			"h1": {Members: map[sim.ActorID]struct{}{factorID: {}, josiahID: {}}},
 		},

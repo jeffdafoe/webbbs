@@ -553,12 +553,35 @@ type ErrandVisitView struct {
 	Sell bool
 	// GoodLabel is the display noun of the good a BUYER wants (unused for a seller).
 	GoodLabel string
+	// Pack lists a SELLER's actual pack goods (his live inventory), each with the
+	// keeper's own worth reference where one resolves (LLM-647). Sorted by noun for
+	// deterministic render. Empty for a buyer errand or an empty pack.
+	Pack []PackGood
+}
+
+// PackGood is one good in a selling visitor's pack as the counterparty keeper
+// prices it (LLM-647): the count-aware noun, the quantity carried, and what one
+// unit is worth to THIS keeper — offerItemUnitWorth's realized-first resolution
+// (his own recent sales, else his purchases, else the catalog seed). Worth 0
+// means the good doesn't price for him: the listing still names it, but no
+// figure is attached — silence, never a guessed number.
+type PackGood struct {
+	Noun  string
+	Qty   int
+	Worth int
 }
 
 // buildErrandVisit returns the keeper-facing cue when the subject is a resident keeper and a
 // merchant visitor whose errand Counterparty is the subject's OWN work structure is co-present
 // (LLM-455). nil for anyone else, or when no such visitor is present. Pure over the snapshot.
-func buildErrandVisit(snap *sim.Snapshot, actorSnap *sim.ActorSnapshot, members []HuddleMember) *ErrandVisitView {
+//
+// For a SELLER the view also carries the pack listing with the keeper's own worth
+// per good (LLM-647): the keeper is about to compose a pay_with_item payment
+// against the visitor's asks, and with no reference in the scene an above-market
+// ask has nothing arguing against it — live, Josiah overpaid visiting merchants
+// by ~617 coins in two weeks while every resident leg priced fine, because his
+// asks are anchored (LLM-646) and his payments were not.
+func buildErrandVisit(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.ActorSnapshot, members []HuddleMember) *ErrandVisitView {
 	if snap == nil || actorSnap == nil {
 		return nil
 	}
@@ -584,10 +607,58 @@ func buildErrandVisit(snap *sim.Snapshot, actorSnap *sim.ActorSnapshot, members 
 			if def := snap.ItemKinds[t.Good]; def != nil {
 				view.GoodLabel = def.Singular()
 			}
+			return view
 		}
+		view.Pack = buildPackGoods(snap, actorID, vs)
 		return view
 	}
 	return nil
+}
+
+// buildPackGoods lists a selling visitor's live inventory as the keeper prices it
+// (LLM-647). Worth per unit is offerItemUnitWorth — the same realized-first
+// resolution the LLM-598 offer verdict uses, priced for the KEEPER (his own sales
+// first, so an import he retails is anchored at what it fetches from his counter,
+// which is the honest ceiling on what buying more of it is worth to him). A good
+// that resolves no price keeps Worth 0 and renders without a figure. Sorted by
+// noun (then kind) so the render is deterministic.
+func buildPackGoods(snap *sim.Snapshot, keeperID sim.ActorID, seller *sim.ActorSnapshot) []PackGood {
+	if seller == nil || len(seller.Inventory) == 0 {
+		return nil
+	}
+	type entry struct {
+		kind sim.ItemKind
+		g    PackGood
+	}
+	entries := make([]entry, 0, len(seller.Inventory))
+	for kind, qty := range seller.Inventory {
+		if qty <= 0 {
+			continue
+		}
+		noun := string(kind)
+		if def := snap.ItemKinds[kind]; def != nil {
+			noun = def.CountNoun(qty)
+		}
+		entries = append(entries, entry{kind: kind, g: PackGood{
+			Noun:  noun,
+			Qty:   qty,
+			Worth: offerItemUnitWorth(snap, keeperID, kind),
+		}})
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].g.Noun != entries[j].g.Noun {
+			return entries[i].g.Noun < entries[j].g.Noun
+		}
+		return entries[i].kind < entries[j].kind
+	})
+	out := make([]PackGood, len(entries))
+	for i, e := range entries {
+		out[i] = e.g
+	}
+	return out
 }
 
 // renderErrandVisit writes the "## A trader's come to deal" cue for the counterparty keeper
@@ -605,11 +676,44 @@ func renderErrandVisit(b *strings.Builder, v *ErrandVisitView) {
 	}
 	b.WriteString("## A trader's come to deal\n")
 	if v.Sell {
-		fmt.Fprintf(b, "%s, a factor%s, is here to deal with you. He carries cloth, iron, and salt from the city to sell, and he'll buy the surplus stacking up in your store to carry off. Buy what the village needs from his pack with pay_with_item (seller \"%s\", the item, the quantity, consume_now false, coins in amount, your words in say), and let him buy your surplus in turn.\n\n", name, origin, name)
+		fmt.Fprintf(b, "%s, a factor%s, is here to deal with you. He's brought city goods to sell, and he'll buy the surplus stacking up in your store to carry off.", name, origin)
+		renderPackGoods(b, v.Pack)
+		fmt.Fprintf(b, " Buy what the village needs from his pack with pay_with_item (seller \"%s\", the item, the quantity, consume_now false, coins in amount, your words in say), and let him buy your surplus in turn.\n\n", name)
 		return
 	}
 	good := sanitizeInline(v.GoodLabel)
 	fmt.Fprintf(b, "%s, a trader%s, has come to buy your %s to carry off and sell elsewhere. Sell him what you can spare as you would any customer, and name your price if he asks.\n\n", name, origin, good)
+}
+
+// renderPackGoods writes the pack listing with the keeper's worth references
+// (LLM-647): what the visitor actually carries, and — for each good that prices —
+// what one fetches here, so the keeper weighs the visitor's asks against his own
+// numbers instead of taking them on faith. Goods that don't price are named
+// without a figure. When at least one good priced, closes with the weigh-it
+// counsel; an all-unpriced pack gets the bare listing and no counsel — no figures
+// to weigh against. Writes nothing for an empty pack (the prose above already
+// covers the deal in general terms). Nouns come from the catalog via the view;
+// sanitized here.
+func renderPackGoods(b *strings.Builder, pack []PackGood) {
+	if len(pack) == 0 {
+		return
+	}
+	b.WriteString(" In his pack: ")
+	priced := false
+	for i, g := range pack {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(b, "%d %s", g.Qty, sanitizeInline(g.Noun))
+		if g.Worth > 0 {
+			priced = true
+			fmt.Fprintf(b, " (fetches about %d each here)", g.Worth)
+		}
+	}
+	b.WriteString(".")
+	if priced {
+		b.WriteString(" Weigh his asking prices against what the goods fetch from your counter — counter a dear ask or let it go rather than overpay; a bale bought above what it sells for is coin lost.")
+	}
 }
 
 // structureSnapIsTavernOrInn reports whether a structure is a tavern or an inn (a "tavern" or

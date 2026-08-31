@@ -14,6 +14,6 @@ It is morning in the village.
 You're at your workplace.
 
 ## A trader's come to deal
-Master Whitcombe the factor, a factor out of Boston, is here to deal with you. He carries cloth, iron, and salt from the city to sell, and he'll buy the surplus stacking up in your store to carry off. Buy what the village needs from his pack with pay_with_item (seller "Master Whitcombe the factor", the item, the quantity, consume_now false, coins in amount, your words in say), and let him buy your surplus in turn.
+Master Whitcombe the factor, a factor out of Boston, is here to deal with you. He's brought city goods to sell, and he'll buy the surplus stacking up in your store to carry off. In his pack: 3 cloak (fetches about 4 each here), 3 coat (fetches about 5 each here), 2 silver_locket. Weigh his asking prices against what the goods fetch from your counter — counter a dear ask or let it go rather than overpay; a bale bought above what it sells for is coin lost. Buy what the village needs from his pack with pay_with_item (seller "Master Whitcombe the factor", the item, the quantity, consume_now false, coins in amount, your words in say), and let him buy your surplus in turn.
 
 Weigh what's in front of you — obligations and pressing needs come before idle matters. Choose one action, then call done() when nothing pressing remains.
