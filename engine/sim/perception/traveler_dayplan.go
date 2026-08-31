@@ -726,12 +726,16 @@ func renderPackGoods(b *strings.Builder, pack []PackGood) {
 			fmt.Fprintf(b, " (you've been paying about %d each)", g.Worth)
 		case worthFromCatalog:
 			priced = true
-			fmt.Fprintf(b, " (worth about %d at the going rate)", g.Worth)
+			fmt.Fprintf(b, " (the customary price is about %d)", g.Worth)
 		}
 	}
 	b.WriteString(".")
 	if priced {
-		b.WriteString(" Weigh his asking prices against what you know the goods are worth — counter a dear ask or let it go rather than overpay; a bale bought above what it sells on for is coin lost.")
+		// "what you know of their prices", not "what they are worth" — a
+		// purchase-derived figure may be a past overpayment and a catalog seed is
+		// custom, not observation; neither supports an intrinsic-worth claim
+		// (code_review, round 2).
+		b.WriteString(" Weigh his asking prices against what you know of their prices — counter a dear ask or let it go rather than overpay; a bale bought above what it sells on for is coin lost.")
 	}
 }
 

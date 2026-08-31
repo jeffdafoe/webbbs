@@ -132,8 +132,11 @@ func TestRenderPackGoodsProvenanceWording(t *testing.T) {
 	if strings.Contains(out, "thread (fetches") {
 		t.Errorf("purchase-derived figure must never claim a counter realization: %q", out)
 	}
-	if !strings.Contains(out, "5 salt (worth about 2 at the going rate)") {
-		t.Errorf("catalog figure lacks the going-rate wording: %q", out)
+	if !strings.Contains(out, "5 salt (the customary price is about 2)") {
+		t.Errorf("catalog figure lacks the customary-price wording: %q", out)
+	}
+	if strings.Contains(out, "worth") {
+		t.Errorf("no figure may be presented as intrinsic worth: %q", out)
 	}
 	var unpriced strings.Builder
 	renderPackGoods(&unpriced, []PackGood{{Noun: "silver_locket", Qty: 2}})
