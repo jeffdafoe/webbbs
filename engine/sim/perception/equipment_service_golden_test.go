@@ -169,6 +169,24 @@ func TestWrightRoundsSkipsNonBusinessObjects(t *testing.T) {
 	}
 }
 
+// TestWrightCuesRequireKeeperOwnership — workplace assignment alone is not the
+// trade (code_review): a hired hand assigned to the wright's workshop neither
+// gets the rounds steer nor counts as the co-present wright who escalates the
+// owner's cue to the pay imperative.
+func TestWrightCuesRequireKeeperOwnership(t *testing.T) {
+	snap, _ := equipmentScenarioBase(150, 2, "h1")
+	// Reassign the workshop to someone else: Lewis still WORKS there but no
+	// longer owns it, so he is no longer its keeper.
+	snap.VillageObjects["workshop"].OwnerActorID = "someone-else"
+	if v := buildWrightRounds(snap, "lewis", snap.Actors["lewis"], nil); v != nil {
+		t.Errorf("a non-keeper at the workshop got the rounds steer: %+v", v)
+	}
+	members := []HuddleMember{{ID: "lewis", DisplayName: "Lewis Walker"}}
+	if v := buildEquipmentService(snap, "joseph", snap.Actors["joseph"], members); v == nil || v.WrightName != "" {
+		t.Errorf("owner cue: want the standing fact with no wright imperative, got %+v", v)
+	}
+}
+
 // TestGoldensEquipmentCueOnlyForDueOwner — "## Your equipment" may render only
 // for a resident subject whose OWN business has accrued to the due threshold.
 // The gate and the cue share DueOwnedBusiness, so a render without a due owned
@@ -207,7 +225,7 @@ func TestGoldensWrightTradeCueOnlyForWright(t *testing.T) {
 			}
 			snap, actorID, _ := sc.build()
 			a := snap.Actors[actorID]
-			if a == nil || a.VisitorState != nil || !sim.ActorIsWright(snap.VillageObjects, a.WorkStructureID) {
+			if a == nil || a.VisitorState != nil || !sim.ActorIsWright(snap.VillageObjects, a.WorkStructureID, actorID) {
 				t.Errorf("scenario %q: %q rendered for a non-wright subject", sc.name, marker)
 			}
 		})
@@ -240,7 +258,7 @@ func TestGoldensEquipmentPayImperativeNeedsWright(t *testing.T) {
 				if id == actorID {
 					continue
 				}
-				if m := snap.Actors[id]; m != nil && sim.ActorIsWright(snap.VillageObjects, m.WorkStructureID) {
+				if m := snap.Actors[id]; m != nil && sim.ActorIsWright(snap.VillageObjects, m.WorkStructureID, id) {
 					hasWright = true
 				}
 			}

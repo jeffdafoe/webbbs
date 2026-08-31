@@ -112,7 +112,7 @@ UPDATE actor_attribute
               FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(params->'restock') = 'array'
                         THEN params->'restock' ELSE '[]'::jsonb END) AS e
-             WHERE e->>'item' <> 'whetstone'),
+             WHERE e->>'item' IS DISTINCT FROM 'whetstone'),
            '[]'::jsonb
        ) || '[{"item": "whetstone", "source": "produce", "max": 4}]'::jsonb
    )
@@ -130,7 +130,7 @@ UPDATE actor_attribute
               FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(params->'restock') = 'array'
                         THEN params->'restock' ELSE '[]'::jsonb END) AS e
-             WHERE e->>'item' <> 'whetstone'),
+             WHERE e->>'item' IS DISTINCT FROM 'whetstone'),
            '[]'::jsonb
        ) || '[{"item": "whetstone", "source": "buy", "max": 4}]'::jsonb
    )

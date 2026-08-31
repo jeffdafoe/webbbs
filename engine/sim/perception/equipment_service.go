@@ -153,7 +153,7 @@ func buildEquipmentService(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *s
 		if ms == nil || m.ID == actorID {
 			continue
 		}
-		if sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID) {
+		if sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
 			v.WrightName = m.DisplayName
 			break
 		}
@@ -195,7 +195,7 @@ func buildWrightRounds(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.A
 	if snap == nil || actorSnap == nil || actorSnap.VisitorState != nil {
 		return nil
 	}
-	if !sim.ActorIsWright(snap.VillageObjects, actorSnap.WorkStructureID) {
+	if !sim.ActorIsWright(snap.VillageObjects, actorSnap.WorkStructureID, actorID) {
 		return nil
 	}
 	if actorSnap.Inventory[sim.WhetstoneKind] < sim.WhetstonesPerService {

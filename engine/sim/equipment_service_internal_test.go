@@ -36,7 +36,7 @@ func equipmentWorld(stones, use int) (*World, *Actor, *Actor) {
 		ItemKinds: equipmentCatalog(),
 		Actors:    map[ActorID]*Actor{seller.ID: seller, buyer.ID: buyer},
 		VillageObjects: map[VillageObjectID]*VillageObject{
-			"workshop": {ID: "workshop", Tags: []string{TagWright}},
+			"workshop": {ID: "workshop", OwnerActorID: "lewis", Tags: []string{TagWright}},
 			"mill":     {ID: "mill", OwnerActorID: "joseph", Tags: []string{TagBusiness}, EquipmentUse: use},
 		},
 	}
@@ -74,9 +74,9 @@ func TestAccrueEquipmentUse(t *testing.T) {
 			t.Errorf("EquipmentUse = %d, want the untouched 40", got)
 		}
 	})
-	t.Run("an owner with no business accrues nothing", func(t *testing.T) {
+	t.Run("an owner with no wearable business accrues nothing", func(t *testing.T) {
 		w, _, _ := equipmentWorld(0, 40)
-		AccrueEquipmentUse(w, "lewis", 25) // the workshop has no owner set
+		AccrueEquipmentUse(w, "lewis", 25) // the workshop is his but carries no business tag
 		if got := w.VillageObjects["mill"].EquipmentUse; got != 40 {
 			t.Errorf("someone else's business accrued: %d", got)
 		}
@@ -166,6 +166,24 @@ func TestTransferOrderGoods_EquipmentService(t *testing.T) {
 		}
 		if got := w.VillageObjects["mill"].EquipmentUse; got != 150 {
 			t.Error("a rejected service must not touch the counter")
+		}
+	})
+
+	t.Run("a hired non-keeper at the workshop rejects", func(t *testing.T) {
+		// The keeper-authority half of ActorIsWright (code_review): workplace
+		// assignment alone must not grant the trade — the seller must OWN the
+		// wright-tagged structure. A hand assigned to Lewis's shop can neither
+		// sell the service nor burn Lewis's whetstones on his behalf.
+		w, _, buyer := equipmentWorld(2, 150)
+		hand := &Actor{ID: "hand", DisplayName: "Hired Hand", WorkStructureID: "workshop",
+			Inventory: map[ItemKind]int{WhetstoneKind: 2}}
+		w.Actors[hand.ID] = hand
+		err := transferOrderGoods(w, equipmentOrder(buyer.ID), hand, []*Actor{buyer}, at)
+		if err == nil || !strings.Contains(err.Error(), "wright") {
+			t.Fatalf("want the keeper-authority rejection, got %v", err)
+		}
+		if got := w.VillageObjects["mill"].EquipmentUse; got != 150 {
+			t.Error("the non-keeper's attempt must not service the business")
 		}
 	})
 

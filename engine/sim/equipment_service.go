@@ -78,15 +78,19 @@ func IsWrightStructure(obj *VillageObject) bool {
 	return obj != nil && obj.HasTag(TagWright)
 }
 
-// ActorIsWright reports whether the actor stationed at workStructureID offers
-// equipment service — their workplace carries TagWright. Takes the object map
-// so it serves both the live World and a perception Snapshot. An actor with no
-// workplace is never a wright.
-func ActorIsWright(objects map[VillageObjectID]*VillageObject, workStructureID StructureID) bool {
-	if workStructureID == "" {
+// ActorIsWright reports whether the actor may offer equipment service: they
+// work at a TagWright structure AND are its KEEPER (the structure's owner).
+// Stricter than the ActorIsMender workplace-only posture on purpose
+// (code_review): a hired hand assigned to the workshop must not be able to
+// sell the service and burn the wright's whetstones on his behalf. Takes the
+// object map so it serves both the live World and a perception Snapshot. An
+// actor with no workplace is never a wright.
+func ActorIsWright(objects map[VillageObjectID]*VillageObject, workStructureID StructureID, actorID ActorID) bool {
+	if workStructureID == "" || actorID == "" {
 		return false
 	}
-	return IsWrightStructure(objects[VillageObjectID(workStructureID)])
+	obj := objects[VillageObjectID(workStructureID)]
+	return IsWrightStructure(obj) && obj.OwnerActorID == actorID
 }
 
 // EquipmentServiceDue reports whether an owned business has accrued enough use
@@ -149,7 +153,7 @@ func ValidateEquipmentServiceDelivery(w *World, seller, buyer *Actor, kind ItemK
 	if seller == nil {
 		return fmt.Errorf("equipment service: no seller")
 	}
-	if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
+	if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 		return fmt.Errorf("%s does not work a wright's trade", seller.DisplayName)
 	}
 	if seller.Inventory[WhetstoneKind] < WhetstonesPerService {

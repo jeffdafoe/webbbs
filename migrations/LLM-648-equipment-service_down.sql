@@ -33,7 +33,7 @@ UPDATE actor_attribute
               FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(params->'restock') = 'array'
                         THEN params->'restock' ELSE '[]'::jsonb END) AS e
-             WHERE e->>'item' <> 'whetstone'),
+             WHERE e->>'item' IS DISTINCT FROM 'whetstone'),
            '[]'::jsonb
        ))
  WHERE (actor_id = '019da6f9-1b4c-7dda-bb6b-3248cdafb2c4' AND slug = 'blacksmith')

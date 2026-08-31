@@ -816,7 +816,7 @@ func PayWithItem(
 
 				// Seller-side structural gate: only a keeper of a wright-tagged
 				// structure works the trade.
-				if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
+				if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 					return nil, fmt.Errorf(
 						"%s doesn't work a wright's trade — no one to service your equipment.",
 						seller.DisplayName,
@@ -1381,7 +1381,7 @@ func runPayWithItemFastPath(
 				"the wright's service is bought one visit at a time — qty must be 1.",
 			)
 		}
-		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
+		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 			return nil, fmt.Errorf(
 				"%s doesn't work a wright's trade — no one to service your equipment.",
 				seller.DisplayName,
@@ -1832,7 +1832,7 @@ func acceptPendingOffer(w *World, seller *Actor, entry *PayLedgerEntry, at time.
 			// unit entry would charge for units that can never be delivered.
 			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
 		}
-		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
+		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
 		}
 		if seller.Inventory[WhetstoneKind] < WhetstonesPerService {
