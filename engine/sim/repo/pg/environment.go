@@ -227,6 +227,9 @@ func buildSettings(values map[string]string) sim.WorldSettings {
 	s.StallRepairDurationSeconds = parseIntSetting(values, "stall_repair_duration_seconds", sim.DefaultStallRepairDurationSeconds)
 	s.StallDegradedProducePct = parseIntSetting(values, "stall_degraded_produce_pct", sim.DefaultStallDegradedProducePct)
 
+	// Equipment service (LLM-648).
+	s.EquipmentServiceDueThreshold = parseIntSetting(values, "equipment_service_due_threshold", sim.DefaultEquipmentServiceDueThreshold)
+
 	// Farm upkeep wealth tax (LLM-215).
 	s.FarmUpkeepFloor = parseIntSetting(values, "farm_upkeep_floor", sim.DefaultFarmUpkeepFloor)
 	s.FarmUpkeepCoinsPerShovel = parseIntSetting(values, "farm_upkeep_coins_per_shovel", sim.DefaultFarmUpkeepCoinsPerShovel)

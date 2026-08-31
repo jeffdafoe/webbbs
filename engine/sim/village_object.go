@@ -93,6 +93,16 @@ type VillageObject struct {
 	// isn't a wearable business (see IsWearableStall / TagBusiness scope).
 	Wear int
 
+	// EquipmentUse is the accumulated deep-maintenance demand on an owned
+	// business (LLM-648), accrued in proportion to its OUTPUT — produced units
+	// at batch landing, harvested units from the owner's own sources — and
+	// reset to 0 only by the wright's bought equipment_service (the mending
+	// idiom; equipment_service.go). Distinct from Wear (coin turned over,
+	// owner-mended with nails): this is the millstones dulling with use.
+	// Durable (checkpointed). Zero for every object that isn't a wearable
+	// business, and never accrues while the due-threshold setting is 0.
+	EquipmentUse int
+
 	// RateOwed is the coin this owned business owes the constable in town rate
 	// (LLM-557), accrued a day at a time by the daily assessment and drawn down
 	// when the owner pays a constable. Durable (checkpointed) for the same reason

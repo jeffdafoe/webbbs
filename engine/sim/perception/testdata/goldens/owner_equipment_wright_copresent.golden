@@ -1,0 +1,22 @@
+## Who you are
+You are Joseph Scott.
+
+# Your turn
+
+## Since your last turn
+(nothing specific — this is a routine check-in)
+
+
+## You
+Coins in your purse: 600.
+
+## Around you
+You are inside The Mill, your workplace, with the wright.
+It is morning in the village.
+
+You're at your workplace.
+
+## Your equipment
+The millstones at The Mill have seen a season's hard use and want the wright's attention. Lewis Walker is here now with his stones — have him see to it: pay_with_item (seller "Lewis Walker", item "equipment_service", qty 1, consume_now false, coins in amount — his rate is about 10).
+
+Weigh what's in front of you — obligations and pressing needs come before idle matters. Choose one action, then call done() when nothing pressing remains.

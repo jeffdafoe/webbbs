@@ -515,6 +515,10 @@ func landProductionCycle(w *World, actorID ActorID, actor *Actor, act *Productio
 	actor.ProductionActivity = nil
 	actor.ProductionNagAt = now
 	recordRecentProduce(actor, act.Item, total, now)
+	// Equipment service (LLM-648): every minted unit — booster bonuses
+	// included, the tools worked for those too — accrues deep-maintenance
+	// demand on the producer's owned business.
+	AccrueEquipmentUse(w, actorID, total)
 	w.emit(&ProductionCycleCompleted{
 		ActorID: actorID,
 		Item:    act.Item,

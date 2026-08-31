@@ -343,6 +343,11 @@ func Render(p Payload, cfg RenderConfig) RenderedPrompt {
 	// Merchant errand keeper-facing cue (LLM-455): the counterparty keeper's "a trader's come
 	// to deal" surface (buy or sell). The trader's own errand steer is folded into the rounds cue.
 	renderErrandVisit(&ephemeral, p.ErrandVisit)
+	// Equipment service (LLM-648): the owner's due-gear standing fact (+ the
+	// act-now imperative when a wright is co-present) and the wright's own
+	// rounds steer.
+	renderEquipmentService(&ephemeral, p.EquipmentService)
+	renderWrightRounds(&ephemeral, p.WrightRounds)
 	renderTravelerSeekBed(&ephemeral, p.TravelerSeekBed)
 	renderSummonsForYou(&ephemeral, p.SummonsForYou)
 	renderSummonRefusal(&ephemeral, p.SummonRefusal)

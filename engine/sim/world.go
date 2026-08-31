@@ -171,6 +171,12 @@ type WorldSettings struct {
 	StallRepairDurationSeconds int
 	StallDegradedProducePct    int
 
+	// Equipment service (LLM-648; equipment_service.go). An owned business
+	// accrues EquipmentUse per unit of output; at this threshold it is DUE for
+	// the wright's service, which resets it. 0 disables the mechanism (no
+	// accrual, nothing due). Live-tunable via the settings row.
+	EquipmentServiceDueThreshold int
+
 	// Cold exposure (LLM-412; cold.go). Per-minute ×100 rates the exposure
 	// sweep applies by situation — storm accrual outdoors / under an unheated
 	// roof, recovery by a lit hearth / under a clear sky — plus the night
@@ -2436,6 +2442,7 @@ func (w *World) republish() {
 		RestockReorderPct:             w.Settings.RestockReorderPct,
 		StallWearRepairThreshold:      w.Settings.StallWearRepairThreshold,
 		StallWearDegradeThreshold:     w.Settings.StallWearDegradeThreshold,
+		EquipmentServiceDueThreshold:  w.Settings.EquipmentServiceDueThreshold,
 		StallNailsPerRepair:           w.Settings.StallNailsPerRepair,
 		StallDegradedProducePct:       w.Settings.StallDegradedProducePct,
 		HearthLowMinutes:              w.Settings.HearthLowMinutes,

@@ -104,6 +104,12 @@ type UmbilicalObjectDTO struct {
 	// capped at town_rate_max_owed. Omitted at 0 (paid up, or not rateable).
 	RateOwed int `json:"rate_owed,omitempty"`
 
+	// EquipmentUse is the accrued deep-maintenance demand on an owned business
+	// (LLM-648), reset only by the wright's bought equipment_service; due at
+	// the equipment_service_due_threshold setting. Omitted at 0 (freshly
+	// serviced, or not a wearable business).
+	EquipmentUse int `json:"equipment_use,omitempty"`
+
 	// HearthLitUntil is when a TagHearth object's fire burns out (LLM-412) —
 	// a future instant while lit, past once it has gone out by the clock (there
 	// is no burn-down sweep). Pointer + omitempty so a NEVER-lit hearth renders
@@ -209,6 +215,7 @@ func umbilicalObjectsFromSnapshot(snap *sim.Snapshot, filter objectsFilter) Umbi
 			StructureBacked: backed,
 			Wear:            o.Wear,
 			RateOwed:        o.RateOwed,
+			EquipmentUse:    o.EquipmentUse,
 			HearthLitUntil:  ptrTimeIfSet(o.HearthLitUntil),
 		}
 		if o.LoiterOffsetX != nil || o.LoiterOffsetY != nil {

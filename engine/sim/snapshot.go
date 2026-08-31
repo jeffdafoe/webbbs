@@ -213,7 +213,10 @@ type Snapshot struct {
 	StallWearRepairThreshold  int
 	StallWearDegradeThreshold int
 	StallNailsPerRepair       int
-	StallDegradedProducePct   int
+	// EquipmentServiceDueThreshold is the LLM-648 due level for the wright's
+	// equipment service; 0 = the mechanism is off (nothing is ever due).
+	EquipmentServiceDueThreshold int
+	StallDegradedProducePct      int
 
 	// Hearth knobs (LLM-412) mirror the WorldSettings values so the hearth
 	// cue, the stoke-tool gate, and the cold relief steer classify a fire

@@ -175,6 +175,14 @@ func applyGatherMint(w *World, actor *Actor, objID VillageObjectID, obj *Village
 	}
 	actor.Inventory[kind] = cur + actual
 
+	// Equipment service (LLM-648): harvesting your OWN source (the wheat field,
+	// the berry rows) is worked output like a minted batch, so it accrues
+	// deep-maintenance demand on the harvester's owned business. A commons
+	// source (the village well) is nobody's equipment and accrues nothing.
+	if obj.OwnerActorID == actor.ID {
+		AccrueEquipmentUse(w, actor.ID, actual)
+	}
+
 	catalogName := ""
 	if a := w.Assets[obj.AssetID]; a != nil {
 		catalogName = a.Name
