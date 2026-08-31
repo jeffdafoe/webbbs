@@ -560,15 +560,19 @@ type ErrandVisitView struct {
 }
 
 // PackGood is one good in a selling visitor's pack as the counterparty keeper
-// prices it (LLM-647): the count-aware noun, the quantity carried, and what one
-// unit is worth to THIS keeper — offerItemUnitWorth's realized-first resolution
-// (his own recent sales, else his purchases, else the catalog seed). Worth 0
-// means the good doesn't price for him: the listing still names it, but no
-// figure is attached — silence, never a guessed number.
+// prices it (LLM-647): the count-aware noun, the quantity carried, what one unit
+// is worth to THIS keeper, and which rung of the realized-first ladder said so
+// (his own recent sales, else his purchases, else the catalog seed). Render
+// words each figure by its Source — a purchase-derived figure is what he has
+// been paying, never presented as what the good fetches (a past overpayment must
+// not read back as a retail realization). Source worthNone means the good
+// doesn't price for him: the listing still names it, but no figure is attached —
+// silence, never a guessed number.
 type PackGood struct {
-	Noun  string
-	Qty   int
-	Worth int
+	Noun   string
+	Qty    int
+	Worth  int
+	Source worthSource
 }
 
 // buildErrandVisit returns the keeper-facing cue when the subject is a resident keeper and a
@@ -639,10 +643,12 @@ func buildPackGoods(snap *sim.Snapshot, keeperID sim.ActorID, seller *sim.ActorS
 		if def := snap.ItemKinds[kind]; def != nil {
 			noun = def.CountNoun(qty)
 		}
+		worth, source := offerItemUnitWorthSource(snap, keeperID, kind)
 		entries = append(entries, entry{kind: kind, g: PackGood{
-			Noun:  noun,
-			Qty:   qty,
-			Worth: offerItemUnitWorth(snap, keeperID, kind),
+			Noun:   noun,
+			Qty:    qty,
+			Worth:  worth,
+			Source: source,
 		}})
 	}
 	if len(entries) == 0 {
@@ -687,13 +693,16 @@ func renderErrandVisit(b *strings.Builder, v *ErrandVisitView) {
 
 // renderPackGoods writes the pack listing with the keeper's worth references
 // (LLM-647): what the visitor actually carries, and — for each good that prices —
-// what one fetches here, so the keeper weighs the visitor's asks against his own
-// numbers instead of taking them on faith. Goods that don't price are named
-// without a figure. When at least one good priced, closes with the weigh-it
-// counsel; an all-unpriced pack gets the bare listing and no counsel — no figures
-// to weigh against. Writes nothing for an empty pack (the prose above already
-// covers the deal in general terms). Nouns come from the catalog via the view;
-// sanitized here.
+// a figure worded by its provenance, so the keeper weighs the visitor's asks
+// against his own numbers instead of taking them on faith. Provenance matters
+// (code_review): a sale-derived figure IS what the good fetches from his counter;
+// a purchase-derived figure is only what he has been paying — for an import that
+// may be a past overpayment, so it renders as exactly that claim and no more; a
+// catalog figure is the going rate. Goods that don't price are named without a
+// figure. When at least one good priced, closes with the weigh-it counsel; an
+// all-unpriced pack gets the bare listing and no counsel — no figures to weigh
+// against. Writes nothing for an empty pack (the prose above already covers the
+// deal in general terms). Nouns come from the catalog via the view; sanitized here.
 func renderPackGoods(b *strings.Builder, pack []PackGood) {
 	if len(pack) == 0 {
 		return
@@ -705,14 +714,24 @@ func renderPackGoods(b *strings.Builder, pack []PackGood) {
 			b.WriteString(", ")
 		}
 		fmt.Fprintf(b, "%d %s", g.Qty, sanitizeInline(g.Noun))
-		if g.Worth > 0 {
+		if g.Worth <= 0 {
+			continue
+		}
+		switch g.Source {
+		case worthFromSales:
 			priced = true
-			fmt.Fprintf(b, " (fetches about %d each here)", g.Worth)
+			fmt.Fprintf(b, " (fetches about %d each from your counter)", g.Worth)
+		case worthFromPurchases:
+			priced = true
+			fmt.Fprintf(b, " (you've been paying about %d each)", g.Worth)
+		case worthFromCatalog:
+			priced = true
+			fmt.Fprintf(b, " (worth about %d at the going rate)", g.Worth)
 		}
 	}
 	b.WriteString(".")
 	if priced {
-		b.WriteString(" Weigh his asking prices against what the goods fetch from your counter — counter a dear ask or let it go rather than overpay; a bale bought above what it sells for is coin lost.")
+		b.WriteString(" Weigh his asking prices against what you know the goods are worth — counter a dear ask or let it go rather than overpay; a bale bought above what it sells on for is coin lost.")
 	}
 }
 

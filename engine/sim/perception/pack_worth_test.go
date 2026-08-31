@@ -48,9 +48,9 @@ func TestBuildPackGoods(t *testing.T) {
 		}}
 		got := buildPackGoods(snap, keeperID, seller)
 		want := []PackGood{
-			{Noun: "iron ingots", Qty: 11, Worth: 6},
-			{Noun: "salt", Qty: 5, Worth: 2},
-			{Noun: "silver_locket", Qty: 2, Worth: 0},
+			{Noun: "iron ingots", Qty: 11, Worth: 6, Source: worthFromCatalog},
+			{Noun: "salt", Qty: 5, Worth: 2, Source: worthFromCatalog},
+			{Noun: "silver_locket", Qty: 2, Worth: 0, Source: worthNone},
 		}
 		if len(got) != len(want) {
 			t.Fatalf("got %d goods, want %d: %+v", len(got), len(want), got)
@@ -62,17 +62,39 @@ func TestBuildPackGoods(t *testing.T) {
 		}
 	})
 
-	t.Run("keeper's realized sales beat the catalog seed", func(t *testing.T) {
+	// The resolution ladder, pinned rung by rung (code_review, LLM-647): sales
+	// beat purchases beat catalog, and each rung carries its provenance so
+	// render can word it honestly.
+	t.Run("keeper's realized sales beat purchases and catalog", func(t *testing.T) {
 		snap := packWorthSnap(published)
 		// The shop has been getting 10 an ingot from its counter — that, not the
-		// 6-coin catalog seed, is the honest ceiling on what buying more is worth.
+		// 12 it once paid a factor nor the 6-coin catalog seed, is the honest
+		// ceiling on what buying more is worth.
 		ironSales := sim.NewRingBuffer[sim.PriceObservation](8)
 		ironSales.Push(sim.PriceObservation{BuyerID: "ezekiel", Amount: 30, Qty: 3, Consumers: 1, At: published.Add(-24 * time.Hour)})
 		snap.PriceBook[sim.PriceBookKey{SellerID: keeperID, Item: "iron"}] = ironSales
+		ironBuys := sim.NewRingBuffer[sim.PriceObservation](8)
+		ironBuys.Push(sim.PriceObservation{BuyerID: keeperID, Amount: 24, Qty: 2, Consumers: 1, At: published.Add(-30 * time.Hour)})
+		snap.PriceBook[sim.PriceBookKey{SellerID: "vstr-x", Item: "iron"}] = ironBuys
 		seller := &sim.ActorSnapshot{Inventory: map[sim.ItemKind]int{"iron": 4}}
 		got := buildPackGoods(snap, keeperID, seller)
-		if len(got) != 1 || got[0].Worth != 10 {
-			t.Fatalf("got %+v, want one iron entry at realized worth 10", got)
+		if len(got) != 1 || got[0].Worth != 10 || got[0].Source != worthFromSales {
+			t.Fatalf("got %+v, want one iron entry at realized sale worth 10 (worthFromSales)", got)
+		}
+	})
+
+	t.Run("purchase history with no sales beats catalog, marked as a purchase", func(t *testing.T) {
+		snap := packWorthSnap(published)
+		// No sales of iron — only what he paid a visitor for it. The figure wins
+		// over the catalog seed but must carry purchase provenance, because it
+		// may BE a past overpayment and render must not call it a realization.
+		ironBuys := sim.NewRingBuffer[sim.PriceObservation](8)
+		ironBuys.Push(sim.PriceObservation{BuyerID: keeperID, Amount: 24, Qty: 2, Consumers: 1, At: published.Add(-30 * time.Hour)})
+		snap.PriceBook[sim.PriceBookKey{SellerID: "vstr-x", Item: "iron"}] = ironBuys
+		seller := &sim.ActorSnapshot{Inventory: map[sim.ItemKind]int{"iron": 4}}
+		got := buildPackGoods(snap, keeperID, seller)
+		if len(got) != 1 || got[0].Worth != 12 || got[0].Source != worthFromPurchases {
+			t.Fatalf("got %+v, want one iron entry at purchase worth 12 (worthFromPurchases)", got)
 		}
 	})
 
@@ -84,18 +106,34 @@ func TestBuildPackGoods(t *testing.T) {
 	})
 }
 
-// TestRenderPackGoodsCounselOnlyWhenPriced — the weigh-his-asks counsel exists to
-// point at figures in the same listing; an all-unpriced pack has none, so the
-// counsel must not render (there is nothing to weigh against).
-func TestRenderPackGoodsCounselOnlyWhenPriced(t *testing.T) {
+// TestRenderPackGoodsProvenanceWording — each provenance gets its own honest
+// claim (code_review, LLM-647): a sale-derived figure is a counter realization,
+// a purchase-derived figure is only what he has been paying (never "fetches"),
+// a catalog figure is the going rate. The counsel renders only when at least one
+// figure is present — an all-unpriced pack has nothing to weigh against.
+func TestRenderPackGoodsProvenanceWording(t *testing.T) {
 	const counsel = "Weigh his asking prices"
 	var priced strings.Builder
-	renderPackGoods(&priced, []PackGood{{Noun: "iron ingots", Qty: 4, Worth: 10}})
-	if !strings.Contains(priced.String(), counsel) {
-		t.Errorf("priced pack render lacks the counsel: %q", priced.String())
+	renderPackGoods(&priced, []PackGood{
+		{Noun: "iron ingots", Qty: 4, Worth: 10, Source: worthFromSales},
+		{Noun: "thread", Qty: 12, Worth: 2, Source: worthFromPurchases},
+		{Noun: "salt", Qty: 5, Worth: 2, Source: worthFromCatalog},
+	})
+	out := priced.String()
+	if !strings.Contains(out, counsel) {
+		t.Errorf("priced pack render lacks the counsel: %q", out)
 	}
-	if !strings.Contains(priced.String(), "4 iron ingots (fetches about 10 each here)") {
-		t.Errorf("priced pack render lacks the worth figure: %q", priced.String())
+	if !strings.Contains(out, "4 iron ingots (fetches about 10 each from your counter)") {
+		t.Errorf("sale-derived figure lacks the counter-realization wording: %q", out)
+	}
+	if !strings.Contains(out, "12 thread (you've been paying about 2 each)") {
+		t.Errorf("purchase-derived figure lacks the paying wording: %q", out)
+	}
+	if strings.Contains(out, "thread (fetches") {
+		t.Errorf("purchase-derived figure must never claim a counter realization: %q", out)
+	}
+	if !strings.Contains(out, "5 salt (worth about 2 at the going rate)") {
+		t.Errorf("catalog figure lacks the going-rate wording: %q", out)
 	}
 	var unpriced strings.Builder
 	renderPackGoods(&unpriced, []PackGood{{Noun: "silver_locket", Qty: 2}})
