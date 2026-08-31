@@ -16,7 +16,12 @@ UPDATE actor
  WHERE id = '019da6d4-24d2-7461-88b0-72b2b288bd5c'
    AND role = 'wright';
 
--- The workshop back to the unowned, untagged spare it was.
+-- The workshop back to the unowned, untagged spare it was. The STRUCTURE row
+-- is deliberately RETAINED (code_review): the up's corrective upsert may have
+-- converged a row that predated the migration (prod's 2026-08-31 hotfix row),
+-- so a down-DELETE could destroy pre-migration state. An unreferenced
+-- structure row is harmless — Lewis's work_structure_id is nulled above, so
+-- nothing points at it.
 UPDATE village_object
    SET display_name = 'Innkeeeper''s Residence',
        owner_actor_id = NULL,
