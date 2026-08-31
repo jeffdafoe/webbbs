@@ -16,12 +16,16 @@ UPDATE actor
  WHERE id = '019da6d4-24d2-7461-88b0-72b2b288bd5c'
    AND role = 'wright';
 
--- The workshop back to the unowned, untagged spare it was.
+-- The workshop back to the unowned, untagged spare it was — including
+-- dropping the structure row the up created (the spare was decoration-only;
+-- Lewis's work_structure_id is nulled above, so nothing references it).
 UPDATE village_object
    SET display_name = 'Innkeeeper''s Residence',
        owner_actor_id = NULL,
        tags = array_remove(array_remove(tags, 'wright'), 'business')
  WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b';
+
+DELETE FROM structure WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b';
 
 -- Strip the restock entries.
 UPDATE actor_attribute

@@ -155,6 +155,21 @@ UPDATE village_object
  WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b'
    AND NOT ('wright' = ANY(tags));
 
+-- 6b. The STRUCTURE row. The spare residence was a decoration-only placement —
+--     a village_object with NO structure row — and an actor's work_structure_id
+--     must resolve into loaded Structures or the engine refuses to boot
+--     ("actor structure ref check"). This was learned the hard way: the
+--     2026-08-31 deploy crash-looped the engine until the row was inserted by
+--     hand. A workplace needs no structure_room rows (the Mill has none) —
+--     the structure row alone satisfies the ref check. snapshot_gen rides the
+--     current max so the row survives the next checkpoint's stale-prune.
+INSERT INTO structure (id, display_name, tags, leads_to_realm, snapshot_gen)
+SELECT '019e0e3c-56fb-71a2-96b3-0f0740b6077b', 'Lewis''s Workshop',
+       '{business,wright}'::text[], '',
+       COALESCE((SELECT max(snapshot_gen) FROM structure), 0)
+ WHERE EXISTS (SELECT 1 FROM village_object WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b')
+ON CONFLICT (id) DO NOTHING;
+
 -- 7. Lewis takes up the trade: role, workplace, a 9:00-18:00 local shift
 --    (the Josiah 540-1260 convention, shorter — his afternoons are rounds).
 UPDATE actor
@@ -220,6 +235,10 @@ BEGIN
                           AND owner_actor_id = '019da6d4-24d2-7461-88b0-72b2b288bd5c'
                           AND 'business' = ANY(tags) AND 'wright' = ANY(tags)) THEN
             RAISE EXCEPTION 'LLM-648: the workshop 019e0e3c... did not convert (stale id?)';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM structure
+                        WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b') THEN
+            RAISE EXCEPTION 'LLM-648: the workshop has no structure row — the engine will refuse to boot on the actor structure ref check';
         END IF;
         IF NOT EXISTS (SELECT 1 FROM actor
                         WHERE id = '019da6d4-24d2-7461-88b0-72b2b288bd5c'
