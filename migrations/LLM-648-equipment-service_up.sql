@@ -166,10 +166,11 @@ UPDATE village_object
 --     Corrective upsert (the catalog-row posture, and rerun-safe like the
 --     rest of this file): a pre-existing row at this id — prod carries the
 --     2026-08-31 hand-inserted hotfix row — is converged onto the canonical
---     shape rather than ignored or collided with, so the validation below can
---     assert the FULL shape and the down's DELETE removes a row this
---     migration owns. snapshot_gen is left alone on conflict: after boot the
---     checkpoint owns it.
+--     shape rather than ignored or collided with; the validation below
+--     asserts that full shape. The DOWN deliberately retains this row (a
+--     converged row may predate the migration, so deleting it could destroy
+--     pre-migration state; unreferenced, it is harmless). snapshot_gen is
+--     left alone on conflict: after boot the checkpoint owns it.
 INSERT INTO structure (id, display_name, tags, leads_to_realm, snapshot_gen)
 SELECT '019e0e3c-56fb-71a2-96b3-0f0740b6077b', 'Lewis''s Workshop',
        '{business,wright}'::text[], '',
@@ -249,7 +250,8 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM structure
                         WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b'
                           AND display_name = 'Lewis''s Workshop'
-                          AND 'business' = ANY(tags) AND 'wright' = ANY(tags)) THEN
+                          AND tags = '{business,wright}'::text[]
+                          AND leads_to_realm = '') THEN
             RAISE EXCEPTION 'LLM-648: the workshop structure row is missing or off-shape — the engine will refuse to boot on the actor structure ref check';
         END IF;
         IF NOT EXISTS (SELECT 1 FROM actor
