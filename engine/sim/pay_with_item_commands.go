@@ -790,6 +790,14 @@ func PayWithItem(
 			// Transient conditions (the wright's whetstone stock) stay at the
 			// accept gate, the thread-shortfall split.
 			if itemHasCapability(w, kind, CapabilityEquipmentService) {
+				// One visit, one service, one price: delivery resets ONE
+				// business and draws ONE whetstone, so a qty > 1 offer would
+				// charge for units that can never be delivered (code_review).
+				if qty != 1 {
+					return nil, errors.New(
+						"the wright's service is bought one visit at a time — qty must be 1.",
+					)
+				}
 				// The service is delivered as an effect on the buyer's owned
 				// business, never eaten — consume_now is meaningless here for
 				// the same LLM-391 reason as lodging and mending.
@@ -1368,6 +1376,11 @@ func runPayWithItemFastPath(
 	// reject up front — mirrors the slow-path intake gates, the mending shape
 	// above.
 	if !bundle && itemHasCapability(w, kind, CapabilityEquipmentService) {
+		if qty != 1 {
+			return nil, errors.New(
+				"the wright's service is bought one visit at a time — qty must be 1.",
+			)
+		}
 		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
 			return nil, fmt.Errorf(
 				"%s doesn't work a wright's trade — no one to service your equipment.",
@@ -1814,6 +1827,11 @@ func acceptPendingOffer(w *World, seller *Actor, entry *PayLedgerEntry, at time.
 	// accept-tool caller gets a retryable error naming it; the rest
 	// terminal-flip.
 	if !entry.IsGift && itemHasCapability(w, entry.ItemKind, CapabilityEquipmentService) {
+		if entry.Qty != 1 {
+			// Delivery resets ONE business and draws ONE whetstone — a multi-
+			// unit entry would charge for units that can never be delivered.
+			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
+		}
 		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID)) {
 			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
 		}
@@ -3113,6 +3131,9 @@ func preflightEquipmentServiceEntry(w *World, buyer, seller *Actor, entry *PayLe
 	}
 	if entry.IsGift {
 		return fmt.Errorf("commitPayTransfer: ledger %d is a gift of equipment service — the service is bought, not given", entry.ID)
+	}
+	if entry.Qty != 1 {
+		return fmt.Errorf("commitPayTransfer: ledger %d buys %d equipment services — delivery is one visit, one reset, one stone (qty must be 1)", entry.ID, entry.Qty)
 	}
 	for _, cid := range entry.ConsumerIDs {
 		if cid != entry.BuyerID {

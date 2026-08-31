@@ -573,6 +573,12 @@ func transferOrderGoods(w *World, o *Order, seller *Actor, consumers []*Actor, a
 	// Equipment service (LLM-648): the mending arm's shape for the wright's
 	// trade — validate, reset the buyer's due business, draw the whetstone.
 	if itemHasCapability(w, o.Item, CapabilityEquipmentService) {
+		if o.Qty != 1 {
+			// The intake gates and commit preflight enforce qty 1; this is the
+			// defensive delivery boundary — one visit resets one business and
+			// draws one stone, so a multi-unit order must never settle here.
+			return fmt.Errorf("order %d: equipment-service qty must be 1 (got %d)", o.ID, o.Qty)
+		}
 		if len(o.ConsumerIDs) != 1 || o.ConsumerIDs[0] != o.BuyerID {
 			return fmt.Errorf("order %d: equipment-service order must have the buyer as its sole consumer (buyer=%q consumers=%v)", o.ID, o.BuyerID, o.ConsumerIDs)
 		}

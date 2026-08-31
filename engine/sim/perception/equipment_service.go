@@ -204,7 +204,14 @@ func buildWrightRounds(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.A
 	threshold := snap.EquipmentServiceDueThreshold
 	var best *sim.VillageObject
 	for _, obj := range snap.VillageObjects {
-		if obj == nil || obj.OwnerActorID == "" || obj.OwnerActorID == actorID {
+		if obj == nil || obj.OwnerActorID == actorID {
+			continue
+		}
+		// The same wearable-business predicate the accrual seam, the owner cue,
+		// and the delivery gate run (code_review): a non-business owned object
+		// with a stray persisted EquipmentUse must never become a rounds
+		// destination — ServiceEquipment could not reset it.
+		if !sim.IsWearableStall(obj) {
 			continue
 		}
 		if !sim.EquipmentServiceDue(obj, threshold) {

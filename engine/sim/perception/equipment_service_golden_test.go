@@ -147,6 +147,28 @@ func wrightNoStoneScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
 	return snap, "lewis", nil
 }
 
+// TestWrightRoundsSkipsNonBusinessObjects — the rounds pick runs the same
+// wearable-business predicate as accrual and delivery (code_review): a
+// non-business owned object with a stray persisted EquipmentUse must never
+// outrank a due wearable business, however high its counter reads.
+func TestWrightRoundsSkipsNonBusinessObjects(t *testing.T) {
+	snap, actors := equipmentScenarioBase(150, 2, "")
+	actors["lewis"].Pos = sim.TilePos{X: 90, Y: 90}
+	// A stray owned decoration carrying a higher counter than the due mill —
+	// no TagBusiness, so ServiceEquipment could never reset it.
+	snap.VillageObjects["shed"] = &sim.VillageObject{
+		ID: "shed", DisplayName: "Old Shed", Pos: sim.WorldPos{X: 100, Y: 100},
+		OwnerActorID: "joseph", EquipmentUse: 999,
+	}
+	v := buildWrightRounds(snap, "lewis", snap.Actors["lewis"], nil)
+	if v == nil {
+		t.Fatal("the due mill must still produce a rounds steer")
+	}
+	if v.Business != "The Mill" {
+		t.Errorf("rounds picked %q, want the wearable business The Mill", v.Business)
+	}
+}
+
 // TestGoldensEquipmentCueOnlyForDueOwner — "## Your equipment" may render only
 // for a resident subject whose OWN business has accrued to the due threshold.
 // The gate and the cue share DueOwnedBusiness, so a render without a due owned

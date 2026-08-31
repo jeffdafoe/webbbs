@@ -197,6 +197,19 @@ func TestTransferOrderGoods_EquipmentService(t *testing.T) {
 		}
 	})
 
+	t.Run("a multi-unit order rejects at the delivery boundary", func(t *testing.T) {
+		w, seller, buyer := equipmentWorld(2, 150)
+		o := equipmentOrder(buyer.ID)
+		o.Qty = 2
+		err := transferOrderGoods(w, o, seller, []*Actor{buyer}, at)
+		if err == nil || !strings.Contains(err.Error(), "qty must be 1") {
+			t.Fatalf("want the defensive qty-1 rejection, got %v", err)
+		}
+		if got := seller.Inventory[WhetstoneKind]; got != 2 {
+			t.Errorf("a rejected multi-unit order must not draw the stone: %d", got)
+		}
+	})
+
 	t.Run("equipment_service without service is a misconfigured catalog", func(t *testing.T) {
 		w, seller, buyer := equipmentWorld(2, 150)
 		w.ItemKinds["equipment_service"].Capabilities = []string{CapabilityEquipmentService}
@@ -233,7 +246,7 @@ func TestPreflightEquipmentServiceEntry(t *testing.T) {
 		}
 	})
 	t.Run("a deliverable service passes", func(t *testing.T) {
-		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", BuyerID: buyer.ID, SellerID: seller.ID}
+		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", Qty: 1, BuyerID: buyer.ID, SellerID: seller.ID}
 		if err := preflightEquipmentServiceEntry(w, buyer, seller, entry); err != nil {
 			t.Fatalf("a deliverable service must pass the preflight: %v", err)
 		}
@@ -250,15 +263,24 @@ func TestPreflightEquipmentServiceEntry(t *testing.T) {
 			t.Fatalf("want the gift rejection, got %v", err)
 		}
 	})
+	t.Run("a multi-unit service rejects before coins move", func(t *testing.T) {
+		// Delivery resets one business and draws one stone, so a qty > 1 entry
+		// would charge for undeliverable units (code_review). The preflight is
+		// the boundary BEFORE commitPayTransfer moves coins.
+		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", Qty: 2, BuyerID: buyer.ID, SellerID: seller.ID}
+		if err := preflightEquipmentServiceEntry(w, buyer, seller, entry); err == nil || !strings.Contains(err.Error(), "qty must be 1") {
+			t.Fatalf("want the qty-1 rejection, got %v", err)
+		}
+	})
 	t.Run("a non-buyer consumer rejects", func(t *testing.T) {
-		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", BuyerID: buyer.ID, ConsumerIDs: []ActorID{seller.ID}}
+		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", Qty: 1, BuyerID: buyer.ID, ConsumerIDs: []ActorID{seller.ID}}
 		if err := preflightEquipmentServiceEntry(w, buyer, seller, entry); err == nil || !strings.Contains(err.Error(), "non-buyer") {
 			t.Fatalf("want the non-buyer consumer rejection, got %v", err)
 		}
 	})
 	t.Run("an undeliverable service rejects without mutating", func(t *testing.T) {
 		wDry, sellerDry, buyerDry := equipmentWorld(0, 150)
-		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", BuyerID: buyerDry.ID}
+		entry := &PayLedgerEntry{ID: 7, ItemKind: "equipment_service", Qty: 1, BuyerID: buyerDry.ID}
 		if err := preflightEquipmentServiceEntry(wDry, buyerDry, sellerDry, entry); err == nil || !strings.Contains(err.Error(), "whetstone") {
 			t.Fatalf("want the no-whetstone rejection, got %v", err)
 		}

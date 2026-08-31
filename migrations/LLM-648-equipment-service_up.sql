@@ -99,7 +99,10 @@ ON CONFLICT (output_item) DO UPDATE SET
     updated_at      = now();
 
 -- 5a. Ezekiel Crane's blacksmith restock gains the whetstone produce line.
---     Corrective rewrite converging on one canonical {whetstone, produce, max 4}.
+--     Corrective rewrite: EVERY existing whetstone entry (any source — a prior
+--     partial run or hand edit could have left a wrong-source one) is stripped
+--     before the canonical {whetstone, produce, max 4} is appended, so a rerun
+--     converges on exactly one entry (code_review).
 UPDATE actor_attribute
    SET params = jsonb_set(
        params,
@@ -109,7 +112,7 @@ UPDATE actor_attribute
               FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(params->'restock') = 'array'
                         THEN params->'restock' ELSE '[]'::jsonb END) AS e
-             WHERE NOT (e->>'item' = 'whetstone' AND e->>'source' = 'produce')),
+             WHERE e->>'item' <> 'whetstone'),
            '[]'::jsonb
        ) || '[{"item": "whetstone", "source": "produce", "max": 4}]'::jsonb
    )
@@ -127,7 +130,7 @@ UPDATE actor_attribute
               FROM jsonb_array_elements(
                    CASE WHEN jsonb_typeof(params->'restock') = 'array'
                         THEN params->'restock' ELSE '[]'::jsonb END) AS e
-             WHERE NOT (e->>'item' = 'whetstone' AND e->>'source' = 'buy')),
+             WHERE e->>'item' <> 'whetstone'),
            '[]'::jsonb
        ) || '[{"item": "whetstone", "source": "buy", "max": 4}]'::jsonb
    )
