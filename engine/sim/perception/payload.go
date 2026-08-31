@@ -89,6 +89,13 @@ type Payload struct {
 	// factor's own trade steer is now folded into the errand-aware TravelerRounds surface.)
 	ErrandVisit *ErrandVisitView
 
+	// EquipmentService is the owner-side "## Your equipment" cue (LLM-648) when
+	// the subject's owned business is due for the wright's service; WrightRounds
+	// the wright-side "## The wright's rounds" steer. nil otherwise; see
+	// equipment_service.go.
+	EquipmentService *EquipmentServiceView
+	WrightRounds     *WrightRoundsView
+
 	// VisitorCommerceStripped is true when the subject is a visitor whose commerce tools should
 	// be withheld this tick (LLM-455) — the talk-only-rounds gate: a visitor not co-present with
 	// his errand counterparty or a tavern/inn keeper trades nowhere. Read by handlers/tool_gating.go.

@@ -590,6 +590,10 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 	// (buy or sell), and — for the tool gate — whether the visitor's commerce is confined to
 	// talk-only right now (not co-present with his errand keeper or a tavern/inn).
 	p.ErrandVisit = buildErrandVisit(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
+	// Equipment service (LLM-648): the owner-side due cue and the wright-side
+	// rounds steer. Both nil for most subjects most ticks.
+	p.EquipmentService = buildEquipmentService(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
+	p.WrightRounds = buildWrightRounds(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
 	p.VisitorCommerceStripped = visitorCommerceStripped(snap, actorSnap, p.Surroundings.HuddleMembers)
 	p.SummonsForYou = buildSummonsForYou(snap, actorSnap)
 	p.SummonRefusal = buildSummonRefusal(actorSnap)

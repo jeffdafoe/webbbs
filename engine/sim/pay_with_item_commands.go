@@ -176,6 +176,7 @@ type PayWithItemResult struct {
 	Booked          bool    // future-night lodging Order minted, awaiting keeper check-in
 	LodgedNow       bool    // same-day walk-in room granted on the spot (LLM-84)
 	MendedNow       bool    // worn garments mended on the spot (LLM-625)
+	ServicedNow     bool    // business equipment serviced on the spot (LLM-648)
 	SatisfiesNeed   NeedKey // primary need the consumed item satisfies ("" when n/a)
 	FeltAfter       string  // buyer's post-meal felt label(s) for the item's needs; "" = sated
 	// MealMinutes is the buyer's eat-here dwell duration in minutes when this
@@ -783,6 +784,55 @@ func PayWithItem(
 				}
 			}
 
+			// Equipment-service intake gates (LLM-648) — the mending block's
+			// posture applied to the wright's trade: reject structurally
+			// impossible offers upfront, before any coin/ledger side effect.
+			// Transient conditions (the wright's whetstone stock) stay at the
+			// accept gate, the thread-shortfall split.
+			if itemHasCapability(w, kind, CapabilityEquipmentService) {
+				// One visit, one service, one price: delivery resets ONE
+				// business and draws ONE whetstone, so a qty > 1 offer would
+				// charge for units that can never be delivered (code_review).
+				if qty != 1 {
+					return nil, errors.New(
+						"the wright's service is bought one visit at a time — qty must be 1.",
+					)
+				}
+				// The service is delivered as an effect on the buyer's owned
+				// business, never eaten — consume_now is meaningless here for
+				// the same LLM-391 reason as lodging and mending.
+				consumeNow = false
+
+				// The service restores the BUYER's own business; a non-buyer
+				// consumer is a guaranteed-impossible order.
+				for _, cid := range consumerIDs {
+					if cid != buyerID {
+						return nil, fmt.Errorf(
+							"%s can't be bought for someone else — the wright services the buyer's own business (drop the consumers list).",
+							kind,
+						)
+					}
+				}
+
+				// Seller-side structural gate: only a keeper of a wright-tagged
+				// structure works the trade.
+				if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
+					return nil, fmt.Errorf(
+						"%s is not the keeper of a wright's workshop — no one here to service your equipment.",
+						seller.DisplayName,
+					)
+				}
+
+				// Buyer-side gate: paying for a service with nothing due buys
+				// nothing, and use only accrues, so this can't self-resolve
+				// within the offer's TTL.
+				if DueOwnedBusiness(w.VillageObjects, buyer.ID, w.Settings.EquipmentServiceDueThreshold) == nil {
+					return nil, errors.New(
+						"your equipment isn't due for the wright's service yet.",
+					)
+				}
+			}
+
 			// Resolve the booked date (ZBBS-HOME-403). Advance booking
 			// (ready_in_days > 0) is lodging-only — a physical good is handed
 			// over when paid for, so a future date would just strand the
@@ -1322,6 +1372,41 @@ func runPayWithItemFastPath(
 			}
 		}
 	}
+	// LLM-648: an equipment-service quote-take delivers at this accept, so
+	// reject up front — mirrors the slow-path intake gates, the mending shape
+	// above.
+	if !bundle && itemHasCapability(w, kind, CapabilityEquipmentService) {
+		if qty != 1 {
+			return nil, errors.New(
+				"the wright's service is bought one visit at a time — qty must be 1.",
+			)
+		}
+		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
+			return nil, fmt.Errorf(
+				"%s is not the keeper of a wright's workshop — no one here to service your equipment.",
+				seller.DisplayName,
+			)
+		}
+		if seller.Inventory[WhetstoneKind] < WhetstonesPerService {
+			return nil, fmt.Errorf(
+				"%s has no whetstone to work with right now — try again once they've restocked.",
+				seller.DisplayName,
+			)
+		}
+		if DueOwnedBusiness(w.VillageObjects, buyer.ID, w.Settings.EquipmentServiceDueThreshold) == nil {
+			return nil, errors.New(
+				"your equipment isn't due for the wright's service yet.",
+			)
+		}
+		for _, cid := range entryConsumerIDs {
+			if cid != buyer.ID {
+				return nil, fmt.Errorf(
+					"%s can't be bought for someone else — the wright services the buyer's own business.",
+					kind,
+				)
+			}
+		}
+	}
 	if !buyerCanAfford(buyer, amount) {
 		return nil, fmt.Errorf(
 			"insufficient coins (have %d to spend, need %d) — quote a smaller offer.",
@@ -1434,6 +1519,7 @@ func runPayWithItemFastPath(
 		Booked:          out.booked,
 		LodgedNow:       out.lodgedNow,
 		MendedNow:       out.mendedNow,
+		ServicedNow:     out.servicedNow,
 		SatisfiesNeed:   out.satisfiesNeed,
 		FeltAfter:       out.feltAfter,
 		MealMinutes:     out.mealMinutes,
@@ -1732,6 +1818,31 @@ func acceptPendingOffer(w *World, seller *Actor, entry *PayLedgerEntry, at time.
 			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedInsufficientStock, "", at), nil
 		}
 		if len(WornGarmentKinds(w.ItemKinds, buyer.Inventory, buyer.GarmentWear)) == 0 {
+			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
+		}
+	}
+
+	// Gate 10d (LLM-648): equipment service — the mending gate's shape for the
+	// wright's trade. The whetstone shortfall is seller-fixable, so the
+	// accept-tool caller gets a retryable error naming it; the rest
+	// terminal-flip.
+	if !entry.IsGift && itemHasCapability(w, entry.ItemKind, CapabilityEquipmentService) {
+		if entry.Qty != 1 {
+			// Delivery resets ONE business and draws ONE whetstone — a multi-
+			// unit entry would charge for units that can never be delivered.
+			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
+		}
+		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
+			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
+		}
+		if seller.Inventory[WhetstoneKind] < WhetstonesPerService {
+			if viaAcceptTool {
+				return entry.State, ModelFacingError{Msg: fmt.Sprintf(
+					"You have no %s to work with — buy one before taking service work.", WhetstoneKind)}
+			}
+			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedInsufficientStock, "", at), nil
+		}
+		if DueOwnedBusiness(w.VillageObjects, entry.BuyerID, w.Settings.EquipmentServiceDueThreshold) == nil {
 			return finalizePayLedgerTerminal(w, entry, PayTerminalStateFailedUnavailable, "", at), nil
 		}
 	}
@@ -2966,6 +3077,7 @@ type payTransferOutcome struct {
 	booked          bool    // future-night lodging Order minted for keeper check-in
 	lodgedNow       bool    // same-day walk-in room granted on the spot (LLM-84)
 	mendedNow       bool    // worn garments mended on the spot (LLM-625)
+	servicedNow     bool    // business equipment serviced on the spot (LLM-648)
 	satisfiesNeed   NeedKey // primary need the consumed item satisfies
 	feltAfter       string  // buyer's post-consume felt label(s); "" = sated
 	mealMinutes     int     // buyer's eat-here dwell duration in minutes; 0 = no ongoing meal/drink (ZBBS-WORK-409)
@@ -2997,6 +3109,38 @@ func preflightMendingEntry(w *World, buyer, seller *Actor, entry *PayLedgerEntry
 		}
 	}
 	if err := ValidateMendingDelivery(w, seller, buyer, entry.ItemKind); err != nil {
+		return fmt.Errorf("commitPayTransfer: ledger %d: %w", entry.ID, err)
+	}
+	return nil
+}
+
+// preflightEquipmentServiceEntry is preflightMendingEntry's mirror for the
+// wright's trade (LLM-648): rejects, before commitPayTransfer mutates
+// anything, an equipment-service entry riding a bundle line, a gifted service,
+// a consumer set that is not the buyer alone, or a service failing
+// ValidateEquipmentServiceDelivery. nil for every entry with no
+// equipment-service involvement — the common case, one capability probe.
+func preflightEquipmentServiceEntry(w *World, buyer, seller *Actor, entry *PayLedgerEntry) error {
+	for _, ln := range entry.Lines {
+		if itemHasCapability(w, ln.ItemKind, CapabilityEquipmentService) {
+			return fmt.Errorf("commitPayTransfer: ledger %d carries equipment service inside a bundle — the service is single-item only", entry.ID)
+		}
+	}
+	if !itemHasCapability(w, entry.ItemKind, CapabilityEquipmentService) {
+		return nil
+	}
+	if entry.IsGift {
+		return fmt.Errorf("commitPayTransfer: ledger %d is a gift of equipment service — the service is bought, not given", entry.ID)
+	}
+	if entry.Qty != 1 {
+		return fmt.Errorf("commitPayTransfer: ledger %d buys %d equipment services — delivery is one visit, one reset, one stone (qty must be 1)", entry.ID, entry.Qty)
+	}
+	for _, cid := range entry.ConsumerIDs {
+		if cid != entry.BuyerID {
+			return fmt.Errorf("commitPayTransfer: ledger %d services a non-buyer consumer %q — the wright services the buyer's own business", entry.ID, cid)
+		}
+	}
+	if err := ValidateEquipmentServiceDelivery(w, seller, buyer, entry.ItemKind); err != nil {
 		return fmt.Errorf("commitPayTransfer: ledger %d: %w", entry.ID, err)
 	}
 	return nil
@@ -3254,6 +3398,9 @@ func commitPayTransfer(
 	// entries that reached commit some other way (reloaded across a deploy,
 	// seeded, or directly constructed).
 	if err := preflightMendingEntry(w, buyer, seller, entry); err != nil {
+		return payTransferOutcome{}, err
+	}
+	if err := preflightEquipmentServiceEntry(w, buyer, seller, entry); err != nil {
 		return payTransferOutcome{}, err
 	}
 	// Two-way swap (ZBBS-HOME-393): the buyer pays with coins AND/OR goods.
@@ -3577,6 +3724,21 @@ func commitPayTransfer(
 		eagerlyDelivered = o
 		orderMinted = true
 		out.mendedNow = true
+	} else if itemHasCapability(w, entry.ItemKind, CapabilityEquipmentService) {
+		// Equipment service (LLM-648): always same-day — the wright is
+		// standing at the buyer's business, tools in hand, so there is no
+		// advance-booking arm. mintAndFulfillOrderNow runs
+		// transferOrderGoods, whose service branch resets the business's
+		// EquipmentUse and draws the wright's whetstone; gate 10d
+		// pre-validated all three preconditions, so this can't fail for
+		// contention. The mending walk-in shape.
+		o, err := mintAndFulfillOrderNow(w, entry, seller, at)
+		if err != nil {
+			return payTransferOutcome{}, err
+		}
+		eagerlyDelivered = o
+		orderMinted = true
+		out.servicedNow = true
 	} else if isCommissionOrder(w, seller, entry) {
 		// Commission (LLM-338): the seller MAKES this good but doesn't hold enough
 		// to hand over now, so mint a DEFERRED Ready Order — the same shape as an

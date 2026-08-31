@@ -148,6 +148,7 @@ func buildSettingRegistry() []SettingSpec {
 		intSetting("stall_nails_per_repair", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.StallNailsPerRepair }),
 		intSetting("stall_repair_duration_seconds", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.StallRepairDurationSeconds }),
 		intSetting("stall_degraded_produce_pct", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.StallDegradedProducePct }),
+		intSetting("equipment_service_due_threshold", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.EquipmentServiceDueThreshold }),
 
 		// --- farm upkeep (LLM-215) / town rate (LLM-557) -------------------
 		intSetting("farm_upkeep_floor", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.FarmUpkeepFloor }),
