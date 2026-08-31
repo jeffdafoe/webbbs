@@ -21,9 +21,10 @@ import "fmt"
 // the engine ever reading a purse — targeting is emergent and diegetic.
 //
 // The model, mirroring mending piece for piece:
-//   - The wright is resolved from WHERE THE SELLER WORKS: a structure carrying
-//     TagWright (operator-assignable via /object/add-tag — no actor named in
-//     code, the TagMending posture).
+//   - The wright is the KEEPER of a TagWright structure he works at
+//     (operator-assignable via /object/add-tag + /object/set-owner — no actor
+//     named in code). Stricter than mending's workplace-only gate; see
+//     ActorIsWright.
 //   - Each service consumes WhetstonesPerService of the seller's whetstones —
 //     an Ezekiel-forged good with an iron input, so the service line deepens
 //     the iron sink instead of reusing nails.
@@ -154,7 +155,7 @@ func ValidateEquipmentServiceDelivery(w *World, seller, buyer *Actor, kind ItemK
 		return fmt.Errorf("equipment service: no seller")
 	}
 	if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
-		return fmt.Errorf("%s does not work a wright's trade", seller.DisplayName)
+		return fmt.Errorf("%s is not the keeper of a wright's workshop", seller.DisplayName)
 	}
 	if seller.Inventory[WhetstoneKind] < WhetstonesPerService {
 		return fmt.Errorf("%s has no whetstone to work with", seller.DisplayName)

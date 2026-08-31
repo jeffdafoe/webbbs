@@ -818,7 +818,7 @@ func PayWithItem(
 				// structure works the trade.
 				if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 					return nil, fmt.Errorf(
-						"%s doesn't work a wright's trade — no one to service your equipment.",
+						"%s is not the keeper of a wright's workshop — no one here to service your equipment.",
 						seller.DisplayName,
 					)
 				}
@@ -1383,7 +1383,7 @@ func runPayWithItemFastPath(
 		}
 		if !ActorIsWright(w.VillageObjects, StructureID(seller.WorkStructureID), seller.ID) {
 			return nil, fmt.Errorf(
-				"%s doesn't work a wright's trade — no one to service your equipment.",
+				"%s is not the keeper of a wright's workshop — no one here to service your equipment.",
 				seller.DisplayName,
 			)
 		}
