@@ -163,12 +163,22 @@ UPDATE village_object
 --     hand. A workplace needs no structure_room rows (the Mill has none) —
 --     the structure row alone satisfies the ref check. snapshot_gen rides the
 --     current max so the row survives the next checkpoint's stale-prune.
+--     Corrective upsert (the catalog-row posture, and rerun-safe like the
+--     rest of this file): a pre-existing row at this id — prod carries the
+--     2026-08-31 hand-inserted hotfix row — is converged onto the canonical
+--     shape rather than ignored or collided with, so the validation below can
+--     assert the FULL shape and the down's DELETE removes a row this
+--     migration owns. snapshot_gen is left alone on conflict: after boot the
+--     checkpoint owns it.
 INSERT INTO structure (id, display_name, tags, leads_to_realm, snapshot_gen)
 SELECT '019e0e3c-56fb-71a2-96b3-0f0740b6077b', 'Lewis''s Workshop',
        '{business,wright}'::text[], '',
        COALESCE((SELECT max(snapshot_gen) FROM structure), 0)
  WHERE EXISTS (SELECT 1 FROM village_object WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    display_name   = EXCLUDED.display_name,
+    tags           = EXCLUDED.tags,
+    leads_to_realm = EXCLUDED.leads_to_realm;
 
 -- 7. Lewis takes up the trade: role, workplace, a 9:00-18:00 local shift
 --    (the Josiah 540-1260 convention, shorter — his afternoons are rounds).
@@ -237,8 +247,10 @@ BEGIN
             RAISE EXCEPTION 'LLM-648: the workshop 019e0e3c... did not convert (stale id?)';
         END IF;
         IF NOT EXISTS (SELECT 1 FROM structure
-                        WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b') THEN
-            RAISE EXCEPTION 'LLM-648: the workshop has no structure row — the engine will refuse to boot on the actor structure ref check';
+                        WHERE id = '019e0e3c-56fb-71a2-96b3-0f0740b6077b'
+                          AND display_name = 'Lewis''s Workshop'
+                          AND 'business' = ANY(tags) AND 'wright' = ANY(tags)) THEN
+            RAISE EXCEPTION 'LLM-648: the workshop structure row is missing or off-shape — the engine will refuse to boot on the actor structure ref check';
         END IF;
         IF NOT EXISTS (SELECT 1 FROM actor
                         WHERE id = '019da6d4-24d2-7461-88b0-72b2b288bd5c'
