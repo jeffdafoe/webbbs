@@ -134,6 +134,14 @@ func StartOrJoinBake(actorID ActorID, say string, hasNewNews bool, now time.Time
 				return nil, ModelFacingError{Msg: "there's not enough of the day left to bake before dusk."}
 			}
 
+			// LLM-650: mirror of shiftStartsBeforeDusk (perception). A bake runs to
+			// dusk, so a shift that begins before then would pin the baker at the
+			// hearth through it — the on-shift check above only asks about now.
+			if actor.ScheduleStartMin != nil && actor.ScheduleEndMin != nil &&
+				nowMinute < *actor.ScheduleStartMin && *actor.ScheduleStartMin < dusk {
+				return nil, ModelFacingError{Msg: "your shift starts before the loaves would be done — the baking is for a day you're not at your post."}
+			}
+
 			// A stale session — its initiator lost the bake by some non-completion path,
 			// or its window has already passed — self-heals here so it can never orphan
 			// and block new bakes: drop it and fall through to START.

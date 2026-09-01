@@ -203,6 +203,20 @@ func TestBake_RejectsWhenGateWouldNotOffer(t *testing.T) {
 			t.Error("an unscheduled non-worker started baking")
 		}
 	})
+	// LLM-650: the shift need not be on NOW — one that begins before dusk would
+	// hold the baker at the hearth through it (live: Lewis Walker, the wright).
+	t.Run("shift starts before dusk", func(t *testing.T) {
+		w, cancel, now := buildBakeTestWorld(t)
+		defer cancel()
+		setActor(t, w, "alice", func(a *sim.Actor) {
+			s, e := 17*60, 23*60 // off shift at the 16:00 now, on shift an hour later
+			a.ScheduleStartMin, a.ScheduleEndMin = &s, &e
+			a.WorkStructureID = "home"
+		})
+		if _, err := w.Send(sim.StartOrJoinBake("alice", "", false, now)); err == nil {
+			t.Error("an actor whose shift starts before dusk started baking")
+		}
+	})
 	// START-only since LLM-465: a red need bars committing the afternoon to a fresh
 	// batch, but not joining one already going (TestBake_RedNeedJoinsExistingBatch).
 	t.Run("red need, nothing to join", func(t *testing.T) {
@@ -335,5 +349,24 @@ func TestBake_RedNeedWithStaleSessionIsTreatedAsStart(t *testing.T) {
 	}
 	if k := bakeActivityKind(t, w, "bob"); k == sim.SourceActivityBake {
 		t.Error("bob was committed to a bake he was rejected from")
+	}
+}
+
+// TestBake_ShiftStartingAfterDuskDoesNotBar is the LLM-650 boundary: the gate keys
+// on a shift that would BEGIN while the loaves are still in — a night shift starting
+// after dusk leaves the day free, so the bake goes ahead.
+func TestBake_ShiftStartingAfterDuskDoesNotBar(t *testing.T) {
+	w, cancel, now := buildBakeTestWorld(t)
+	defer cancel()
+	setActor(t, w, "alice", func(a *sim.Actor) {
+		s, e := 20*60, 23*60 // starts an hour after the 19:00 dusk
+		a.ScheduleStartMin, a.ScheduleEndMin = &s, &e
+		a.WorkStructureID = "home"
+	})
+	if _, err := w.Send(sim.StartOrJoinBake("alice", "", false, now)); err != nil {
+		t.Fatalf("a shift starting after dusk should not bar the bake: %v", err)
+	}
+	if got := bakeActivityKind(t, w, "alice"); got != sim.SourceActivityBake {
+		t.Errorf("activity = %q, want bake", got)
 	}
 }

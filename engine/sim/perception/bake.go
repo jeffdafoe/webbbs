@@ -58,6 +58,13 @@ func buildBakeChoice(snap *sim.Snapshot, a *sim.ActorSnapshot) *BakeChoiceView {
 	if !inDaytimeHomeWindow(snap, a) {
 		return nil
 	}
+	// LLM-650: a bake runs to dusk, so a scheduled actor whose shift BEGINS before
+	// then would be pinned at the hearth through it. inDaytimeHomeWindow only asks
+	// whether the shift is on now — Lewis Walker, the wright, joined the 08:27
+	// household bake and missed his 09:00–18:00 shift entire (live 2026-09-01).
+	if shiftStartsBeforeDusk(snap, a) {
+		return nil
+	}
 	// Enough of the day left before dusk to bother.
 	if *snap.LocalMinuteOfDay >= snap.DuskMinute-bakeMinWindowMinutes {
 		return nil
@@ -131,4 +138,19 @@ func renderBakeChoice(b *strings.Builder, v *BakeChoiceView) {
 		return
 	}
 	b.WriteString("The house is quiet and the household is about. There is flour in the crock — you could get the bread on for the week, an afternoon's work at the hearth that leaves fresh loaves by dusk. Call bake to start.\n\n")
+}
+
+// shiftStartsBeforeDusk reports whether a scheduled actor's shift begins between
+// now and dusk — the window a bake would occupy. An unscheduled actor has no
+// shift to start; a shift already running is inDaytimeHomeWindow's concern.
+// Mirrored sim-side in StartOrJoinBake (tool-cue lockstep).
+func shiftStartsBeforeDusk(snap *sim.Snapshot, a *sim.ActorSnapshot) bool {
+	if snap == nil || a == nil || snap.LocalMinuteOfDay == nil || !snap.DawnDuskMinuteOK {
+		return false
+	}
+	if a.ScheduleStartMin == nil || a.ScheduleEndMin == nil {
+		return false
+	}
+	now, start := *snap.LocalMinuteOfDay, *a.ScheduleStartMin
+	return now < start && start < snap.DuskMinute
 }

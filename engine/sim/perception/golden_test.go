@@ -3450,6 +3450,25 @@ var perceptionScenarios = []perceptionScenario{
 		build: hungryHomebodyJoinsBake,
 	},
 	{
+		name: "scheduled_keeper_preshift_gets_no_bake_cue",
+		summary: "LLM-650: the comfortable_homebody_bakes fixture with a trade — Lewis Walker, the wright (LLM-648), " +
+			"home at 09:00 with the household bake going and his 10:00–18:00 shift an hour off. Pre-fix the join " +
+			"invitation rendered (inDaytimeHomeWindow only asks whether the shift is on NOW), he took it, and the hearth " +
+			"pin held him through the whole shift — live 2026-09-01 he joined the 08:27 bake and never reached the " +
+			"workshop; the to-work steer rendered against the pin ten times and lost. The golden pins NO bake line " +
+			"for a scheduled subject due at its post before dusk. A regression that drops shiftStartsBeforeDusk re-adds " +
+			"the invitation here and flips TestNoPreShiftKeeperIsOfferedBake.",
+		build: scheduledKeeperPreshiftGetsNoBakeCue,
+	},
+	{
+		name: "night_keeper_offshift_joins_bake",
+		summary: "LLM-650 (positive half): the same wright with his shift moved to 20:00–23:00, after the 19:00 dusk. " +
+			"The day is his, so the join invitation renders as it does for the unscheduled Walkers — proving the gate " +
+			"keys on a shift that would BEGIN while the loaves are in, not on having a schedule at all. Without a " +
+			"scheduled subject that still bakes, a gate that refused every scheduled actor would pass unnoticed.",
+		build: nightKeeperOffshiftJoinsBake,
+	},
+	{
 		name: "comfortable_worker_no_seek_work",
 		summary: "The LLM-194 case: the same workless Silence Walker as worker_with_coin_no_employer_seeks_work, but holding " +
 			"coin AT/ABOVE the seek-work ceiling (40 >= the default 25). A coin-rich worker is 'comfortable' — it doesn't need " +
@@ -19458,4 +19477,32 @@ func keeperHomeMidShiftActionableRestock() (*sim.Snapshot, sim.ActorID, []sim.Wa
 		},
 	}
 	return snap, josiahID, nil
+}
+
+// scheduledKeeperPreshiftGetsNoBakeCue is the LLM-650 live case: the comfortable
+// homebody fixture given Lewis Walker's wright trade (LLM-648) — a 10:00–18:00 shift at
+// Lewis's Workshop, an hour off at the 09:00 fixture clock, with the household bake
+// already going. The bake would run to dusk and swallow the shift, so no invitation.
+func scheduledKeeperPreshiftGetsNoBakeCue() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, actorID, warrants := comfortableHomebodyBakes()
+	const workshop = sim.StructureID("lewis_workshop")
+	start, end := 600, 1080 // 10:00–18:00
+	a := snap.Actors[actorID]
+	a.DisplayName = "Lewis Walker"
+	a.Role = "wright"
+	a.WorkStructureID = workshop
+	a.ScheduleStartMin, a.ScheduleEndMin = &start, &end
+	snap.Structures[workshop] = plainStructure(workshop, "Lewis's Workshop")
+	return snap, actorID, warrants
+}
+
+// nightKeeperOffshiftJoinsBake is the positive half of the LLM-650 pair: the same
+// wright with a 20:00–23:00 shift, which begins after dusk — the day is free, the
+// invitation renders.
+func nightKeeperOffshiftJoinsBake() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, actorID, warrants := scheduledKeeperPreshiftGetsNoBakeCue()
+	start, end := 1200, 1380 // 20:00–23:00
+	a := snap.Actors[actorID]
+	a.ScheduleStartMin, a.ScheduleEndMin = &start, &end
+	return snap, actorID, warrants
 }
