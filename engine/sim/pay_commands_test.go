@@ -819,7 +819,12 @@ func TestPay_RejectsBundleMemo(t *testing.T) {
 	w, stop, at := buildFastPathFixture(t, 7)
 	defer stop()
 
-	for _, memo := range []string{"bread, ale", "5x wheat, 3x bread", "bread and ale", "bread; ale", "2 x bread & 1 ale"} {
+	// The last three are code_review's whitespace variants around "and": a
+	// single-space split was bypassable by a second space, a tab, or a newline.
+	for _, memo := range []string{
+		"bread, ale", "5x wheat, 3x bread", "bread and ale", "bread; ale", "2 x bread & 1 ale",
+		"5x wheat and  3x bread", "bread\tand\tale", "wheat\nand\nbread",
+	} {
 		_, err := w.Send(sim.Pay("alice", "Bob", 7, memo, at))
 		if err == nil {
 			t.Fatalf("bare pay for %q should be refused", memo)

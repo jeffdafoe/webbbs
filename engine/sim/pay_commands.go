@@ -762,21 +762,37 @@ func activeLodgingQuoteBetween(w *World, partyA, partyB ActorID, huddleID Huddle
 func goodsNamedInPayMemo(w *World, forText string) (goods []ItemKind, counted bool) {
 	seen := map[ItemKind]bool{}
 	isSep := func(r rune) bool { return r == ',' || r == ';' || r == '&' || r == '+' }
+	var segment []string
+	flush := func() {
+		if len(segment) == 0 {
+			return
+		}
+		name, hasCount := stripLeadingCount(strings.Join(segment, " "))
+		segment = segment[:0]
+		kind, ok := resolveItemKind(w, name)
+		if !ok {
+			return
+		}
+		if hasCount {
+			counted = true
+		}
+		if !seen[kind] {
+			seen[kind] = true
+			goods = append(goods, kind)
+		}
+	}
 	for _, tok := range strings.FieldsFunc(strings.ToLower(forText), isSep) {
-		for _, part := range strings.Split(" "+tok+" ", " and ") {
-			name, hasCount := stripLeadingCount(strings.TrimSpace(part))
-			kind, ok := resolveItemKind(w, name)
-			if !ok {
+		// Words are split on any whitespace, of any count, and a bare "and" word
+		// ends a good — "wheat and  flour", "bread\tand\tale" (code_review: a
+		// single-space split around "and" was bypassable by a second space).
+		for _, word := range strings.Fields(tok) {
+			if word == "and" {
+				flush()
 				continue
 			}
-			if hasCount {
-				counted = true
-			}
-			if !seen[kind] {
-				seen[kind] = true
-				goods = append(goods, kind)
-			}
+			segment = append(segment, word)
 		}
+		flush()
 	}
 	return goods, counted
 }
