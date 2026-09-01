@@ -172,6 +172,22 @@ func Pay(buyerID ActorID, recipientName string, amount int, forText string, at t
 				)
 			}
 
+			// LLM-649: a memo that names a BUNDLE of goods is a purchase the model
+			// reached the wrong tool for, not a tip. The LLM-172 guard above
+			// resolves the whole memo as one item, so it sees nothing in
+			// "5x wheat, 3x flour, 2x firewood" and the pay fell through as a plain
+			// transfer — coins moved, no goods did (live 2026-08-31: a factor paid
+			// Josiah 26 and then 30 coins on two such memos, the second for goods
+			// Josiah did not even hold). Two or more distinct goods, or one good
+			// with an explicit count, is the purchase shape and is refused; a single
+			// good with no count ("the ale you gave me") stays a debt memo.
+			if goods, counted := goodsNamedInPayMemo(w, forText); len(goods) >= 2 || (len(goods) == 1 && counted) {
+				return nil, fmt.Errorf(
+					"a plain pay only hands over coins — it delivers none of the %s. Buy each good on its own: call pay_with_item with item, qty and amount; %s hands it over on accepting.",
+					joinItemLabels(w, goods), seller.DisplayName,
+				)
+			}
+
 			// LLM-177: lodging is never settled by a bare coin transfer — pay
 			// moves coins but mints no Order and grants no RoomAccess, so "pay 4
 			// for a room" leaves the guest with nowhere to sleep while the keeper
@@ -735,4 +751,69 @@ func activeLodgingQuoteBetween(w *World, partyA, partyB ActorID, huddleID Huddle
 		}
 	}
 	return best
+}
+
+// goodsNamedInPayMemo resolves the goods a bare pay's free-text memo names, in
+// memo order and deduplicated, and reports whether any of them carried an
+// explicit count. Tokens split on commas, semicolons, ampersands, plus signs
+// and the word "and"; a leading count ("5x", "5", "2 x") is stripped before
+// resolution. Prose that resolves to no good contributes nothing, so "your
+// kindness" and "what I owe you" both come back empty (LLM-649).
+func goodsNamedInPayMemo(w *World, forText string) (goods []ItemKind, counted bool) {
+	seen := map[ItemKind]bool{}
+	isSep := func(r rune) bool { return r == ',' || r == ';' || r == '&' || r == '+' }
+	for _, tok := range strings.FieldsFunc(strings.ToLower(forText), isSep) {
+		for _, part := range strings.Split(" "+tok+" ", " and ") {
+			name, hasCount := stripLeadingCount(strings.TrimSpace(part))
+			kind, ok := resolveItemKind(w, name)
+			if !ok {
+				continue
+			}
+			if hasCount {
+				counted = true
+			}
+			if !seen[kind] {
+				seen[kind] = true
+				goods = append(goods, kind)
+			}
+		}
+	}
+	return goods, counted
+}
+
+// stripLeadingCount drops a leading numeric count from a memo token — "5x
+// wheat", "5 wheat", "2 x cloak" — and reports whether one was there. A bare
+// number with nothing after it counts nothing and is returned unchanged.
+func stripLeadingCount(s string) (string, bool) {
+	i := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return s, false
+	}
+	rest := strings.TrimSpace(s[i:])
+	if rest == "x" || strings.HasPrefix(rest, "x ") {
+		rest = strings.TrimSpace(rest[1:])
+	}
+	if rest == "" {
+		return s, false
+	}
+	return rest, true
+}
+
+// joinItemLabels renders resolved goods as prose: "bread and cheese",
+// "wheat, flour and firewood".
+func joinItemLabels(w *World, goods []ItemKind) string {
+	labels := make([]string, 0, len(goods))
+	for _, kind := range goods {
+		labels = append(labels, itemKindDisplayLabel(w, kind))
+	}
+	switch len(labels) {
+	case 0:
+		return ""
+	case 1:
+		return labels[0]
+	}
+	return strings.Join(labels[:len(labels)-1], ", ") + " and " + labels[len(labels)-1]
 }
