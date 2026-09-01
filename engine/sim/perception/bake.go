@@ -143,14 +143,12 @@ func renderBakeChoice(b *strings.Builder, v *BakeChoiceView) {
 // shiftStartsBeforeDusk reports whether a scheduled actor's shift begins between
 // now and dusk — the window a bake would occupy. An unscheduled actor has no
 // shift to start; a shift already running is inDaytimeHomeWindow's concern.
-// Mirrored sim-side in StartOrJoinBake (tool-cue lockstep).
+// The rule itself is sim.ShiftStartsBeforeDusk, shared with StartOrJoinBake so
+// the cue and the command cannot drift (tool-cue lockstep); this wrapper only
+// unpacks the snapshot.
 func shiftStartsBeforeDusk(snap *sim.Snapshot, a *sim.ActorSnapshot) bool {
 	if snap == nil || a == nil || snap.LocalMinuteOfDay == nil || !snap.DawnDuskMinuteOK {
 		return false
 	}
-	if a.ScheduleStartMin == nil || a.ScheduleEndMin == nil {
-		return false
-	}
-	now, start := *snap.LocalMinuteOfDay, *a.ScheduleStartMin
-	return now < start && start < snap.DuskMinute
+	return sim.ShiftStartsBeforeDusk(a.ScheduleStartMin, a.ScheduleEndMin, *snap.LocalMinuteOfDay, snap.DuskMinute)
 }

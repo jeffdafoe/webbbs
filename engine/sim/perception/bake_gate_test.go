@@ -185,6 +185,24 @@ func TestBuildBakeChoiceShiftStartingBeforeDuskBlocks(t *testing.T) {
 	if v := buildBakeChoice(snap, done); v == nil || !v.Joining {
 		t.Errorf("shift already over: got %+v, want JOIN", v)
 	}
+
+	// Boundaries (code_review): the rule is half-open at dusk, and an overnight
+	// shift is judged by its start alone.
+	atDusk := eveningWorker("cottage")
+	atDusk.ScheduleStartMin, atDusk.ScheduleEndMin = evMinPtr(19*60), evMinPtr(23*60)
+	if v := buildBakeChoice(snap, atDusk); v == nil || !v.Joining {
+		t.Errorf("shift starting exactly at dusk: got %+v, want JOIN (loaves are done by then)", v)
+	}
+	overnightPre := eveningWorker("cottage")
+	overnightPre.ScheduleStartMin, overnightPre.ScheduleEndMin = evMinPtr(18*60), evMinPtr(6*60)
+	if v := buildBakeChoice(snap, overnightPre); v != nil {
+		t.Errorf("overnight shift starting at 18:00, before dusk: got %+v, want nil", v)
+	}
+	overnightPost := eveningWorker("cottage")
+	overnightPost.ScheduleStartMin, overnightPost.ScheduleEndMin = evMinPtr(20*60), evMinPtr(4*60)
+	if v := buildBakeChoice(snap, overnightPost); v == nil || !v.Joining {
+		t.Errorf("overnight shift starting at 20:00, after dusk: got %+v, want JOIN", v)
+	}
 }
 
 // TestNoPreShiftKeeperIsOfferedBake is the LLM-650 corpus invariant: no scenario whose
