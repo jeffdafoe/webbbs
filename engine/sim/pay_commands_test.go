@@ -809,3 +809,65 @@ func TestPay_VisitorBudgetGate(t *testing.T) {
 		t.Fatalf("verify: %v", err)
 	}
 }
+
+// --- TestPay_RejectsBundleMemo: LLM-649. A bare pay whose memo names several
+// goods is a purchase on the wrong tool — the LLM-172 guard resolves the whole
+// memo as one item and sees nothing in a list, so the coins moved and no goods
+// did (live 2026-08-31: a factor's "5x wheat, 3x flour, 2x firewood" at
+// Josiah's counter). Refuse it with the pay_with_item steer and move nothing.
+func TestPay_RejectsBundleMemo(t *testing.T) {
+	w, stop, at := buildFastPathFixture(t, 7)
+	defer stop()
+
+	// The last three are code_review's whitespace variants around "and": a
+	// single-space split was bypassable by a second space, a tab, or a newline.
+	for _, memo := range []string{
+		"bread, ale", "5x wheat, 3x bread", "bread and ale", "bread; ale", "2 x bread & 1 ale",
+		"5x wheat and  3x bread", "bread\tand\tale", "wheat\nand\nbread",
+	} {
+		_, err := w.Send(sim.Pay("alice", "Bob", 7, memo, at))
+		if err == nil {
+			t.Fatalf("bare pay for %q should be refused", memo)
+		}
+		if !strings.Contains(err.Error(), "pay_with_item") || !strings.Contains(err.Error(), "only hands over coins") {
+			t.Errorf("memo %q: steer missing: %v", memo, err)
+		}
+	}
+	snap := w.Published()
+	if got := snap.Actors["alice"].Coins; got != 50 {
+		t.Errorf("alice.Coins = %d, want 50 (no transfer on refusal)", got)
+	}
+	if got := snap.Actors["bob"].Coins; got != 0 {
+		t.Errorf("bob.Coins = %d, want 0 (no transfer on refusal)", got)
+	}
+}
+
+// --- TestPay_RejectsCountedGoodMemo: LLM-649. One good with an explicit count
+// ("5x wheat") is the same purchase shape as a bundle and is refused the same way.
+func TestPay_RejectsCountedGoodMemo(t *testing.T) {
+	w, stop, at := buildFastPathFixture(t, 7)
+	defer stop()
+
+	_, err := w.Send(sim.Pay("alice", "Bob", 10, "5x wheat", at))
+	if err == nil || !strings.Contains(err.Error(), "pay_with_item") {
+		t.Fatalf("counted single good should be refused with the pay_with_item steer, got %v", err)
+	}
+	if got := w.Published().Actors["alice"].Coins; got != 50 {
+		t.Errorf("alice.Coins = %d, want 50 (no transfer on refusal)", got)
+	}
+}
+
+// --- TestPay_AllowsUncountedSingleGoodMemo: LLM-649 scope boundary. One good
+// with no count and no open quote for it ("the ale") is the debt-memo shape and
+// still transfers — Bob has a stew quote only, so the LLM-172 guard is silent too.
+func TestPay_AllowsUncountedSingleGoodMemo(t *testing.T) {
+	w, stop, at := buildFastPathFixture(t, 7)
+	defer stop()
+
+	if _, err := w.Send(sim.Pay("alice", "Bob", 2, "the ale", at)); err != nil {
+		t.Fatalf("a single uncounted good with no quote should transfer as a debt memo: %v", err)
+	}
+	if got := w.Published().Actors["bob"].Coins; got != 2 {
+		t.Errorf("bob.Coins = %d, want 2", got)
+	}
+}
