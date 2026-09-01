@@ -156,3 +156,78 @@ func TestRenderBakeChoice(t *testing.T) {
 		t.Errorf("nil view should render nothing, got %q", b.String())
 	}
 }
+
+// TestBuildBakeChoiceShiftStartingBeforeDuskBlocks is the LLM-650 case: a bake runs
+// to dusk, so a scheduled actor whose shift begins before then must not be offered
+// it, or the hearth pin holds him through his post hours. Live 2026-09-01: Lewis
+// Walker, the wright (09:00–18:00), joined the 08:27 household bake and missed the
+// shift entire. The gate keys on the START falling inside [now, dusk): a shift that
+// already ended, or one starting after dusk, leaves the day free.
+func TestBuildBakeChoiceShiftStartingBeforeDuskBlocks(t *testing.T) {
+	const daytime = 16 * 60 // 16:00, three hours before the 19:00 dusk
+	snap := eveningSnap(daytime)
+	snap.HomeBakesActive = map[sim.StructureID]bool{"cottage": true}
+
+	pre := eveningWorker("cottage")
+	pre.ScheduleStartMin, pre.ScheduleEndMin = evMinPtr(17*60), evMinPtr(23*60)
+	if v := buildBakeChoice(snap, pre); v != nil {
+		t.Errorf("shift starting at 17:00, before dusk: got %+v, want nil", v)
+	}
+
+	night := eveningWorker("cottage")
+	night.ScheduleStartMin, night.ScheduleEndMin = evMinPtr(20*60), evMinPtr(23*60)
+	if v := buildBakeChoice(snap, night); v == nil || !v.Joining {
+		t.Errorf("shift starting at 20:00, after dusk: got %+v, want JOIN", v)
+	}
+
+	done := eveningWorker("cottage")
+	done.ScheduleStartMin, done.ScheduleEndMin = evMinPtr(5*60), evMinPtr(8*60)
+	if v := buildBakeChoice(snap, done); v == nil || !v.Joining {
+		t.Errorf("shift already over: got %+v, want JOIN", v)
+	}
+
+	// Boundaries (code_review): the rule is half-open at dusk, and an overnight
+	// shift is judged by its start alone.
+	atDusk := eveningWorker("cottage")
+	atDusk.ScheduleStartMin, atDusk.ScheduleEndMin = evMinPtr(19*60), evMinPtr(23*60)
+	if v := buildBakeChoice(snap, atDusk); v == nil || !v.Joining {
+		t.Errorf("shift starting exactly at dusk: got %+v, want JOIN (loaves are done by then)", v)
+	}
+	overnightPre := eveningWorker("cottage")
+	overnightPre.ScheduleStartMin, overnightPre.ScheduleEndMin = evMinPtr(18*60), evMinPtr(6*60)
+	if v := buildBakeChoice(snap, overnightPre); v != nil {
+		t.Errorf("overnight shift starting at 18:00, before dusk: got %+v, want nil", v)
+	}
+	overnightPost := eveningWorker("cottage")
+	overnightPost.ScheduleStartMin, overnightPost.ScheduleEndMin = evMinPtr(20*60), evMinPtr(4*60)
+	if v := buildBakeChoice(snap, overnightPost); v == nil || !v.Joining {
+		t.Errorf("overnight shift starting at 20:00, after dusk: got %+v, want JOIN", v)
+	}
+}
+
+// TestNoPreShiftKeeperIsOfferedBake is the LLM-650 corpus invariant: no scenario whose
+// subject is scheduled, off shift now, and due at its post before dusk renders the bake
+// invitation. The join arm is the cheapest form of the cue and the one that pinned Lewis
+// Walker through his first shift as the wright.
+func TestNoPreShiftKeeperIsOfferedBake(t *testing.T) {
+	var eligible int
+	for _, sc := range perceptionScenarios {
+		sc := sc
+		t.Run(sc.name, func(t *testing.T) {
+			snap, actorID, _ := sc.build()
+			if !shiftStartsBeforeDusk(snap, snap.Actors[actorID]) {
+				return
+			}
+			eligible++
+			if strings.Contains(renderScenario(sc), "Call bake to") {
+				t.Errorf("scenario %q offers the bake to a keeper whose shift starts before dusk — "+
+					"the pin would hold them at the hearth through their post hours (LLM-650).", sc.name)
+			}
+		})
+	}
+	// Vacuity floor: scheduled_keeper_preshift_gets_no_bake_cue carries the shape.
+	if eligible == 0 {
+		t.Error("no scenario in the matrix has a scheduled subject due at its post before dusk — " +
+			"scheduled_keeper_preshift_gets_no_bake_cue was removed or its schedule drifted; the invariant checked nothing.")
+	}
+}

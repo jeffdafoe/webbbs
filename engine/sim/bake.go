@@ -134,6 +134,13 @@ func StartOrJoinBake(actorID ActorID, say string, hasNewNews bool, now time.Time
 				return nil, ModelFacingError{Msg: "there's not enough of the day left to bake before dusk."}
 			}
 
+			// LLM-650: a bake runs to dusk, so a shift that begins before then would
+			// pin the baker at the hearth through it — the on-shift check above only
+			// asks about now. The same predicate gates the perception cue.
+			if ShiftStartsBeforeDusk(actor.ScheduleStartMin, actor.ScheduleEndMin, nowMinute, dusk) {
+				return nil, ModelFacingError{Msg: BakeRefusedShiftStartsBeforeDusk}
+			}
+
 			// A stale session — its initiator lost the bake by some non-completion path,
 			// or its window has already passed — self-heals here so it can never orphan
 			// and block new bakes: drop it and fall through to START.
@@ -296,4 +303,24 @@ func homeBakesActiveSet(w *World) map[StructureID]bool {
 		out[id] = true
 	}
 	return out
+}
+
+// BakeRefusedShiftStartsBeforeDusk is the model-facing refusal when a bake would
+// run into the actor's own shift (LLM-650). Exported so the tests pin the reason,
+// not just the refusal.
+const BakeRefusedShiftStartsBeforeDusk = "your shift starts before the loaves would be done — the baking is for a day you're not at your post."
+
+// ShiftStartsBeforeDusk reports whether a scheduled shift begins between now and
+// dusk — the window a bake would occupy — so a bake started now would run into
+// it. Unscheduled (nil) never "starts"; a shift already running is
+// isActorOnShift's concern, which is why a start equal to now is not counted
+// here. Half-open at dusk like the bake itself: a shift starting exactly at
+// dusk is clear, the loaves are done by then. An overnight shift is judged by
+// its start alone (18:00–06:00 at 16:00 blocks; 20:00–04:00 does not). Shared
+// by StartOrJoinBake and the perception bake gate (LLM-650, tool-cue lockstep).
+func ShiftStartsBeforeDusk(startMin, endMin *int, nowMinute, duskMinute int) bool {
+	if startMin == nil || endMin == nil {
+		return false
+	}
+	return nowMinute < *startMin && *startMin < duskMinute
 }

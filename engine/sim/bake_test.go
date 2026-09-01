@@ -203,6 +203,34 @@ func TestBake_RejectsWhenGateWouldNotOffer(t *testing.T) {
 			t.Error("an unscheduled non-worker started baking")
 		}
 	})
+	// LLM-650: the shift need not be on NOW — one that begins before dusk would
+	// hold the baker at the hearth through it (live: Lewis Walker, the wright). The
+	// reason is pinned, not just the refusal, so an unrelated gate can't make
+	// these pass. Overnight shifts are judged by their start alone.
+	for _, tc := range []struct {
+		name       string
+		start, end int
+	}{
+		{"shift starts before dusk", 17 * 60, 23 * 60},          // off shift at the 16:00 now, on an hour later
+		{"overnight shift starts before dusk", 18 * 60, 6 * 60}, // wraps midnight; the start is what matters
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, cancel, now := buildBakeTestWorld(t)
+			defer cancel()
+			setActor(t, w, "alice", func(a *sim.Actor) {
+				s, e := tc.start, tc.end
+				a.ScheduleStartMin, a.ScheduleEndMin = &s, &e
+				a.WorkStructureID = "home"
+			})
+			_, err := w.Send(sim.StartOrJoinBake("alice", "", false, now))
+			if err == nil {
+				t.Fatal("an actor whose shift starts before dusk started baking")
+			}
+			if err.Error() != sim.BakeRefusedShiftStartsBeforeDusk {
+				t.Errorf("refused for the wrong reason: %v", err)
+			}
+		})
+	}
 	// START-only since LLM-465: a red need bars committing the afternoon to a fresh
 	// batch, but not joining one already going (TestBake_RedNeedJoinsExistingBatch).
 	t.Run("red need, nothing to join", func(t *testing.T) {
@@ -335,5 +363,61 @@ func TestBake_RedNeedWithStaleSessionIsTreatedAsStart(t *testing.T) {
 	}
 	if k := bakeActivityKind(t, w, "bob"); k == sim.SourceActivityBake {
 		t.Error("bob was committed to a bake he was rejected from")
+	}
+}
+
+// TestBake_ShiftStartingAfterDuskDoesNotBar is the LLM-650 boundary: the gate keys
+// on a shift that would BEGIN while the loaves are still in — a shift starting at or
+// after dusk, overnight or not, leaves the day free, so the bake goes ahead.
+func TestBake_ShiftStartingAfterDuskDoesNotBar(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		start, end int
+	}{
+		{"night shift after dusk", 20 * 60, 23 * 60},
+		{"shift starting exactly at dusk", 19 * 60, 23 * 60}, // half-open: the loaves are done by then
+		{"overnight shift after dusk", 20 * 60, 4 * 60},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			w, cancel, now := buildBakeTestWorld(t)
+			defer cancel()
+			setActor(t, w, "alice", func(a *sim.Actor) {
+				s, e := tc.start, tc.end
+				a.ScheduleStartMin, a.ScheduleEndMin = &s, &e
+				a.WorkStructureID = "home"
+			})
+			if _, err := w.Send(sim.StartOrJoinBake("alice", "", false, now)); err != nil {
+				t.Fatalf("a shift starting at or after dusk should not bar the bake: %v", err)
+			}
+			if got := bakeActivityKind(t, w, "alice"); got != sim.SourceActivityBake {
+				t.Errorf("activity = %q, want bake", got)
+			}
+		})
+	}
+}
+
+// TestShiftStartsBeforeDusk pins the one rule both bake gates share (LLM-650), at its
+// edges: unscheduled never starts; a start equal to now is the on-shift gate's case, not
+// this one; dusk is exclusive; an overnight shift is judged by its start alone.
+func TestShiftStartsBeforeDusk(t *testing.T) {
+	const now, dusk = 16 * 60, 19 * 60
+	min := func(m int) *int { return &m }
+	for _, tc := range []struct {
+		name       string
+		start, end *int
+		want       bool
+	}{
+		{"unscheduled", nil, nil, false},
+		{"starts in an hour", min(17 * 60), min(23 * 60), true},
+		{"starts now (on shift, not this gate)", min(now), min(23 * 60), false},
+		{"starts exactly at dusk", min(dusk), min(23 * 60), false},
+		{"starts after dusk", min(20 * 60), min(23 * 60), false},
+		{"already over", min(5 * 60), min(8 * 60), false},
+		{"overnight, starts before dusk", min(18 * 60), min(6 * 60), true},
+		{"overnight, starts after dusk", min(20 * 60), min(4 * 60), false},
+	} {
+		if got := sim.ShiftStartsBeforeDusk(tc.start, tc.end, now, dusk); got != tc.want {
+			t.Errorf("%s: got %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }
