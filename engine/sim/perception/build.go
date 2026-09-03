@@ -157,6 +157,12 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 	p.WarrantPlaceKeepers = buildWarrantPlaceKeepers(snap, p.Warrants)
 	p.EatHereKinds = buildEatHereKinds(snap)
 	p.Surroundings = buildSurroundings(snap, actorID, actorSnap)
+	// Equipment service (LLM-648): the owner-side due cue and the wright-side
+	// rounds steer. Both nil for most subjects most ticks. Built ahead of the
+	// labor affordances because both of those step aside for the service
+	// (LLM-651).
+	p.EquipmentService = buildEquipmentService(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
+	p.WrightRounds = buildWrightRounds(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
 	// LLM-26: a free worker can solicit work — carries AttrWorker, isn't already
 	// laboring, has no pending offer already out (one bid at a time, the mirror
 	// of SolicitWork's gate), and has someone SOLICITABLE to offer to. The one
@@ -205,6 +211,13 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 		// on the answer. Soliciting past a job already on the table is the wrong
 		// verb — the decision section names the offer and the answer tools.
 		!subjectHasLaborOfferToAnswer(snap, actorID) &&
+		// LLM-651: the wright standing with the owner of a business due for his
+		// service has one thing to sell, and it is not an odd job. Live, Lewis bid
+		// Moses a four-hour job first and Moses paid for the blades and barrow
+		// twice — once as wages, once as the service. Subtractive, like the bake
+		// cue below: drop the losing affordance (the tool goes with it) and let the
+		// rounds cue's offer imperative stand alone. Elsewhere he still takes odd jobs.
+		!wrightOfferingServiceHere(p.WrightRounds) &&
 		hasSolicitableAudience(snap, actorID, actorSnap, p.Surroundings)
 	// LLM-564: the acquainted subset of that audience, so the solicit cue can name
 	// who to ask. Presentation only — the gate above is untouched, and an empty
@@ -217,6 +230,13 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 	// the two cannot drift. Built after Surroundings so the audience is populated,
 	// and after CanSolicitWork so the two labor mints stay visibly symmetric.
 	p.HireableWorkers = buildHireableWorkers(snap, actorID, actorSnap, p.Surroundings)
+	// LLM-651: the owner's mirror. While "## Your equipment" names the co-present
+	// wright for the service, he is not a hand to hire — the owner has one thing
+	// to buy from him. The slice is the one signal (cue and offer_work tool), so
+	// dropping him here drops him from both.
+	if p.EquipmentService != nil && p.EquipmentService.WrightID != "" {
+		p.HireableWorkers = withoutActor(p.HireableWorkers, p.EquipmentService.WrightID)
+	}
 	// Resolved last among the name-bearing views, because HireableWorkers is the
 	// newest of them and the offer_work cue must render real names — a "someone
 	// takes work for pay" line names a target offer_work cannot resolve.
@@ -590,10 +610,6 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 	// (buy or sell), and — for the tool gate — whether the visitor's commerce is confined to
 	// talk-only right now (not co-present with his errand keeper or a tavern/inn).
 	p.ErrandVisit = buildErrandVisit(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
-	// Equipment service (LLM-648): the owner-side due cue and the wright-side
-	// rounds steer. Both nil for most subjects most ticks.
-	p.EquipmentService = buildEquipmentService(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
-	p.WrightRounds = buildWrightRounds(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
 	p.VisitorCommerceStripped = visitorCommerceStripped(snap, actorSnap, p.Surroundings.HuddleMembers)
 	p.SummonsForYou = buildSummonsForYou(snap, actorSnap)
 	p.SummonRefusal = buildSummonRefusal(actorSnap)

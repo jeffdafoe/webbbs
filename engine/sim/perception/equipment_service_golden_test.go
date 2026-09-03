@@ -48,6 +48,33 @@ func init() {
 				"resupply steer — no service without a stone — even though the mill is due.",
 			build: wrightNoStoneScenario,
 		},
+		perceptionScenario{
+			name: "wright_copresent_no_odd_job_bid",
+			summary: "LLM-651: Lewis — a worker who takes odd jobs, acquainted with Joseph — co-present with him " +
+				"while the mill is due. The rounds cue's offer imperative stands ALONE: no solicit_work affordance " +
+				"(live, the odd-job bid landed first and Moses paid for the blades and barrow twice). The control " +
+				"twin wright_copresent_mill_not_due keeps the bid.",
+			build: wrightCopresentNoOddJobBidScenario,
+		},
+		perceptionScenario{
+			name: "wright_copresent_mill_not_due",
+			summary: "LLM-651 control: the same Lewis and Joseph with the mill under the threshold. No rounds cue, " +
+				"so the ordinary solicit_work affordance renders — the fixture can tell the two apart.",
+			build: wrightCopresentMillNotDueScenario,
+		},
+		perceptionScenario{
+			name: "owner_wright_copresent_not_hireable",
+			summary: "LLM-651 owner side: Joseph, acquainted with Lewis the odd-jobbing wright, mill due, Lewis " +
+				"co-present. '## Your equipment' carries the pay_with_item imperative and the offer_work cue does " +
+				"NOT name Lewis. The control twin owner_wright_copresent_mill_not_due names him.",
+			build: ownerWrightCopresentNotHireableScenario,
+		},
+		perceptionScenario{
+			name: "owner_wright_copresent_mill_not_due",
+			summary: "LLM-651 control: the same pair with the mill under the threshold. No equipment cue, so Lewis " +
+				"is an ordinary hand and the offer_work cue names him.",
+			build: ownerWrightCopresentMillNotDueScenario,
+		},
 	)
 }
 
@@ -145,6 +172,103 @@ func wrightNoStoneScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
 	snap, actors := equipmentScenarioBase(150, 0, "")
 	actors["lewis"].Pos = sim.TilePos{X: 90, Y: 90}
 	return snap, "lewis", nil
+}
+
+// oddJobWrightPair gives the base fixture the two facts the labor cues key on
+// (LLM-651): Lewis takes odd jobs (AttrWorker), and the pair know each other by
+// name, so the solicit cue could name Joseph and the offer_work cue could name
+// Lewis. Both share huddle h1. millUse decides whether the service is due.
+func oddJobWrightPair(millUse int) (*sim.Snapshot, map[sim.ActorID]*sim.ActorSnapshot) {
+	snap, actors := equipmentScenarioBase(millUse, 2, "h1")
+	actors["lewis"].AttributeSlugs = []string{sim.AttrWorker}
+	actors["lewis"].Acquaintances = map[string]sim.Acquaintance{"Joseph Scott": {}}
+	actors["joseph"].Acquaintances = map[string]sim.Acquaintance{"Lewis Walker": {}}
+	return snap, actors
+}
+
+func wrightCopresentNoOddJobBidScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(150)
+	return snap, "lewis", nil
+}
+
+func wrightCopresentMillNotDueScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(50)
+	return snap, "lewis", nil
+}
+
+func ownerWrightCopresentNotHireableScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(120)
+	return snap, "joseph", nil
+}
+
+func ownerWrightCopresentMillNotDueScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(50)
+	return snap, "joseph", nil
+}
+
+// TestGoldensLaborCuesStepAsideForTheService — LLM-651 cross-scenario
+// invariant. In every scenario whose subject is a wright on the co-present arm
+// of his rounds, the prompt carries no solicit_work affordance; in every
+// scenario whose owner-side cue names a co-present wright, that wright is
+// absent from HireableWorkers (the one signal behind the offer_work cue and
+// tool). Each half must apply to at least one scenario or it is vacuous.
+func TestGoldensLaborCuesStepAsideForTheService(t *testing.T) {
+	wrightArms, ownerArms := 0, 0
+	for _, sc := range perceptionScenarios {
+		snap, actorID, warrants := sc.build()
+		p := Build(snap, actorID, warrants)
+		if wrightOfferingServiceHere(p.WrightRounds) {
+			wrightArms++
+			if p.CanSolicitWork {
+				t.Errorf("scenario %q: wright offering his service co-present, but CanSolicitWork is still true (LLM-651)", sc.name)
+			}
+			if out := combinedPrompt(Render(p, DefaultRenderConfig())); strings.Contains(out, "solicit_work") {
+				t.Errorf("scenario %q: wright offering his service co-present, but the prompt still advertises solicit_work (LLM-651)", sc.name)
+			}
+		}
+		if p.EquipmentService != nil && p.EquipmentService.WrightID != "" {
+			ownerArms++
+			for _, id := range p.HireableWorkers {
+				if id == p.EquipmentService.WrightID {
+					t.Errorf("scenario %q: the equipment cue names the co-present wright, but HireableWorkers still lists him (LLM-651)", sc.name)
+				}
+			}
+		}
+	}
+	if wrightArms == 0 {
+		t.Fatal("no scenario put a wright co-present with a due owner — the wright half is vacuous (LLM-651)")
+	}
+	if ownerArms == 0 {
+		t.Fatal("no scenario put a due owner with a co-present wright — the owner half is vacuous (LLM-651)")
+	}
+}
+
+// TestLaborCuesReturnWhenNothingIsDue — the LLM-651 controls must discriminate:
+// with the mill under the threshold the same pair get the ordinary labor cues,
+// so the suppression above is keyed on the service being due, not on the pair.
+func TestLaborCuesReturnWhenNothingIsDue(t *testing.T) {
+	snap, actorID, warrants := wrightCopresentMillNotDueScenario()
+	p := Build(snap, actorID, warrants)
+	if p.WrightRounds != nil {
+		t.Fatalf("control: mill under threshold, want no rounds cue, got %+v", p.WrightRounds)
+	}
+	if !p.CanSolicitWork {
+		t.Error("control: nothing due, want CanSolicitWork true for the odd-jobbing wright")
+	}
+	snap, actorID, warrants = ownerWrightCopresentMillNotDueScenario()
+	p = Build(snap, actorID, warrants)
+	if p.EquipmentService != nil {
+		t.Fatalf("control: mill under threshold, want no equipment cue, got %+v", p.EquipmentService)
+	}
+	found := false
+	for _, id := range p.HireableWorkers {
+		if id == "lewis" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("control: nothing due, want Lewis hireable, got %v", p.HireableWorkers)
+	}
 }
 
 // TestWrightRoundsSkipsNonBusinessObjects — the rounds pick runs the same

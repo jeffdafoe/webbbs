@@ -1,0 +1,24 @@
+## Who you are
+You are Lewis Walker.
+
+# Your turn
+
+## Since your last turn
+(nothing specific — this is a routine check-in)
+
+
+## You
+Coins in your purse: 24.
+You are carrying: Whetstone (x2).
+
+## Around you
+You are outdoors, with Joseph Scott.
+It is morning in the village.
+
+You keep your trade at Lewis's Workshop (destination: workshop) — you can head back there whenever you wish.
+
+## Coin between you and those here, this past week
+- No coin has passed between you and Joseph Scott.
+
+Joseph Scott might have work that wants doing, and you take work for pay. If you want the coin, make the offer with solicit_work — name them, the pay you want (coins, goods they hold such as a meal, or both), and roughly how long you'd work. Speak your ask in solicit_work's `say`, in your own voice; do NOT ask with speak first — speaking ends your turn and no offer is ever made.
+Weigh what's in front of you — obligations and pressing needs come before idle matters. Choose one action, then call done() when nothing pressing remains.

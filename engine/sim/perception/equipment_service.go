@@ -39,7 +39,10 @@ type EquipmentServiceView struct {
 	Overdue bool
 	// WrightName is the co-present wright's display name; "" = no wright in
 	// the huddle, so the cue stays a standing fact with no imperative.
+	// WrightID is the same actor by id, for the labor cues that step aside
+	// for him (LLM-651).
 	WrightName string
+	WrightID   sim.ActorID
 	// ServiceItem is the catalog kind the imperative names (resolved by
 	// capability, not hardcoded); Price its retail rate, 0 = unpriced (the
 	// imperative renders without a figure).
@@ -155,10 +158,30 @@ func buildEquipmentService(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *s
 		}
 		if sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
 			v.WrightName = m.DisplayName
+			v.WrightID = m.ID
 			break
 		}
 	}
 	return v
+}
+
+// wrightOfferingServiceHere reports whether the subject is a wright standing
+// with the owner of a business due for his service — the rounds cue is on its
+// co-present arm. The solicit affordance reads this to step aside (LLM-651).
+func wrightOfferingServiceHere(v *WrightRoundsView) bool {
+	return v != nil && v.CoPresent
+}
+
+// withoutActor returns ids with every occurrence of drop removed; nil when
+// nothing is left, so the slice keeps reading as "no one" (LLM-651).
+func withoutActor(ids []sim.ActorID, drop sim.ActorID) []sim.ActorID {
+	var out []sim.ActorID
+	for _, id := range ids {
+		if id != drop {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // renderEquipmentService writes the owner-side "## Your equipment" cue.
