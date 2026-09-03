@@ -1,0 +1,23 @@
+## Who you are
+You are Joseph Scott.
+
+# Your turn
+
+## Since your last turn
+(nothing specific — this is a routine check-in)
+
+
+## You
+Coins in your purse: 600.
+
+## Around you
+You are inside The Mill, your workplace, with Lewis Walker.
+It is morning in the village.
+
+You're at your workplace.
+
+## Coin between you and those here, this past week
+- No coin has passed between you and Lewis Walker.
+
+Lewis Walker takes work for pay and could lend you a hand. If you have a task worth paying for, ask with offer_work — name them, the pay you will hand over when the work is done (coins, goods you hold such as a meal, or both), and roughly how long the job will take. Put what you say to them in offer_work's `say`, in your own voice; do NOT ask with speak first, because speaking ends your turn and the offer would never reach them.
+Weigh what's in front of you — obligations and pressing needs come before idle matters. Choose one action, then call done() when nothing pressing remains.

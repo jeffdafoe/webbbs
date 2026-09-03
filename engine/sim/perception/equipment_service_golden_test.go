@@ -3,6 +3,7 @@ package perception
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jeffdafoe/llm-memory-plugin-salem-1692/engine/sim"
 )
@@ -47,6 +48,47 @@ func init() {
 			summary: "LLM-648: Lewis holds no whetstone, so '## Your trade' preempts the rounds with the " +
 				"resupply steer — no service without a stone — even though the mill is due.",
 			build: wrightNoStoneScenario,
+		},
+		perceptionScenario{
+			name: "wright_copresent_no_odd_job_bid",
+			summary: "LLM-651: Lewis — a worker who takes odd jobs, acquainted with Joseph — co-present with him " +
+				"while the mill is due. The rounds cue's offer imperative stands ALONE: no solicit_work affordance " +
+				"(live, the odd-job bid landed first and Moses paid for the blades and barrow twice). The control " +
+				"twin wright_copresent_mill_not_due keeps the bid.",
+			build: wrightCopresentNoOddJobBidScenario,
+		},
+		perceptionScenario{
+			name: "wright_copresent_mill_not_due",
+			summary: "LLM-651 control: the same Lewis and Joseph with the mill under the threshold. No rounds cue, " +
+				"so the ordinary solicit_work affordance renders — the fixture can tell the two apart.",
+			build: wrightCopresentMillNotDueScenario,
+		},
+		perceptionScenario{
+			name: "owner_wright_copresent_not_hireable",
+			summary: "LLM-651 owner side: Joseph, acquainted with Lewis the odd-jobbing wright, mill due, Lewis " +
+				"co-present. '## Your equipment' carries the pay_with_item imperative and the offer_work cue does " +
+				"NOT name Lewis. The control twin owner_wright_copresent_mill_not_due names him.",
+			build: ownerWrightCopresentNotHireableScenario,
+		},
+		perceptionScenario{
+			name: "owner_wright_copresent_mill_not_due",
+			summary: "LLM-651 control: the same pair with the mill under the threshold. No equipment cue, so Lewis " +
+				"is an ordinary hand and the offer_work cue names him.",
+			build: ownerWrightCopresentMillNotDueScenario,
+		},
+		perceptionScenario{
+			name: "wright_working_for_due_owner",
+			summary: "LLM-651 (code_review): Lewis is mid-job for Joseph — an odd-job contract minted before the " +
+				"mill came due — and co-present with him. The labor coda pins him; no rounds cue, no solicit_work. " +
+				"The rounds resume when the contract settles.",
+			build: wrightWorkingForDueOwnerScenario,
+		},
+		perceptionScenario{
+			name: "owner_with_wright_on_the_job",
+			summary: "LLM-651 (code_review): Joseph with Lewis mid-job for him and the mill due. '## Your equipment' " +
+				"stays the standing fact — no pay_with_item imperative beside 'don't pay again by hand' — and the " +
+				"offer_work cue does not name him. The service keeps until the contract settles.",
+			build: ownerWithWrightOnTheJobScenario,
 		},
 	)
 }
@@ -145,6 +187,200 @@ func wrightNoStoneScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
 	snap, actors := equipmentScenarioBase(150, 0, "")
 	actors["lewis"].Pos = sim.TilePos{X: 90, Y: 90}
 	return snap, "lewis", nil
+}
+
+// oddJobWrightPair gives the base fixture the two facts the labor cues key on
+// (LLM-651): Lewis takes odd jobs (AttrWorker), and the pair know each other by
+// name, so the solicit cue could name Joseph and the offer_work cue could name
+// Lewis. Both share huddle h1. millUse decides whether the service is due.
+func oddJobWrightPair(millUse int) (*sim.Snapshot, map[sim.ActorID]*sim.ActorSnapshot) {
+	snap, actors := equipmentScenarioBase(millUse, 2, "h1")
+	actors["lewis"].AttributeSlugs = []string{sim.AttrWorker}
+	actors["lewis"].Acquaintances = map[string]sim.Acquaintance{"Joseph Scott": {}}
+	actors["joseph"].Acquaintances = map[string]sim.Acquaintance{"Lewis Walker": {}}
+	return snap, actors
+}
+
+func wrightCopresentNoOddJobBidScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(150)
+	return snap, "lewis", nil
+}
+
+func wrightCopresentMillNotDueScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(50)
+	return snap, "lewis", nil
+}
+
+func ownerWrightCopresentNotHireableScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(120)
+	return snap, "joseph", nil
+}
+
+func ownerWrightCopresentMillNotDueScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	snap, _ := oddJobWrightPair(50)
+	return snap, "joseph", nil
+}
+
+// wrightOnTheJobForOwner is the LLM-651 live-contract fixture: the odd-job
+// pair, mill due, with Lewis an hour into a four-hour job for Joseph that
+// was minted before the mill crossed the threshold.
+func wrightOnTheJobForOwner() *sim.Snapshot {
+	snap, actors := oddJobWrightPair(150)
+	// At the employer's post, as a working hand is — outdoors beside the mill
+	// would read as having wandered off the job.
+	actors["lewis"].InsideStructureID = "mill"
+	published := time.Date(2026, time.September, 3, 15, 0, 0, 0, time.UTC)
+	workingUntil := published.Add(3 * time.Hour)
+	snap.PublishedAt = published
+	snap.LaborLedger = map[sim.LaborID]*sim.LaborOffer{
+		1: {ID: 1, WorkerID: "lewis", EmployerID: "joseph", InitiatedBy: "lewis",
+			State: sim.LaborStateWorking, Reward: 10, DurationMin: 240,
+			WorkingUntil: &workingUntil, HuddleID: "h1"},
+	}
+	return snap
+}
+
+func wrightWorkingForDueOwnerScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	return wrightOnTheJobForOwner(), "lewis", nil
+}
+
+func ownerWithWrightOnTheJobScenario() (*sim.Snapshot, sim.ActorID, []sim.WarrantMeta) {
+	return wrightOnTheJobForOwner(), "joseph", nil
+}
+
+// TestServiceCuesYieldToLiveContract — LLM-651 (code_review): with a live
+// labor contract between the pair, neither service imperative renders. Both
+// pages carry the contract instead, and the standing fact on the owner's page
+// keeps the due-ness visible without an act-now arm.
+func TestServiceCuesYieldToLiveContract(t *testing.T) {
+	snap, actorID, warrants := wrightWorkingForDueOwnerScenario()
+	p := Build(snap, actorID, warrants)
+	if p.WrightRounds != nil {
+		t.Errorf("wright mid-job: want no rounds cue, got %+v", p.WrightRounds)
+	}
+	if p.CanSolicitWork {
+		t.Error("wright mid-job: want CanSolicitWork false")
+	}
+	if out := combinedPrompt(Render(p, DefaultRenderConfig())); strings.Contains(out, "The wright's rounds") {
+		t.Error("wright mid-job: the rounds cue still rendered")
+	}
+
+	snap, actorID, warrants = ownerWithWrightOnTheJobScenario()
+	p = Build(snap, actorID, warrants)
+	if p.EquipmentService == nil {
+		t.Fatal("owner: the mill is due, want the standing fact to render")
+	}
+	if p.EquipmentService.WrightID != "" || p.EquipmentService.WrightName != "" {
+		t.Errorf("owner: the wright on the job must not be named for the pay arm, got %q", p.EquipmentService.WrightName)
+	}
+	for _, id := range p.HireableWorkers {
+		if id == "lewis" {
+			t.Error("owner: a worker already on the job must not be hireable")
+		}
+	}
+	out := combinedPrompt(Render(p, DefaultRenderConfig()))
+	if strings.Contains(out, "pay_with_item") {
+		t.Error("owner: the pay_with_item imperative rendered beside a live contract")
+	}
+	if !strings.Contains(out, "It will keep until the wright calls.") {
+		t.Error("owner: want the standing-fact wording while the contract runs")
+	}
+}
+
+// TestLiveLaborBetween — the shared predicate both service builders read: a
+// live pending offer, en-route, or working row between the two ids counts;
+// an expired pending row, a settled row, or a row with either party swapped
+// does not.
+func TestLiveLaborBetween(t *testing.T) {
+	at := time.Date(2026, time.September, 3, 15, 0, 0, 0, time.UTC)
+	past, future := at.Add(-time.Minute), at.Add(time.Minute)
+	cases := []struct {
+		name string
+		row  *sim.LaborOffer
+		want bool
+	}{
+		{"working", &sim.LaborOffer{WorkerID: "w", EmployerID: "e", State: sim.LaborStateWorking}, true},
+		{"en route", &sim.LaborOffer{WorkerID: "w", EmployerID: "e", State: sim.LaborStateEnRoute}, true},
+		{"pending, unexpired", &sim.LaborOffer{WorkerID: "w", EmployerID: "e", State: sim.LaborStatePending, ExpiresAt: future}, true},
+		{"pending, expired", &sim.LaborOffer{WorkerID: "w", EmployerID: "e", State: sim.LaborStatePending, ExpiresAt: past}, false},
+		{"completed", &sim.LaborOffer{WorkerID: "w", EmployerID: "e", State: sim.LaborStateCompleted}, false},
+		{"parties swapped", &sim.LaborOffer{WorkerID: "e", EmployerID: "w", State: sim.LaborStateWorking}, false},
+		{"other employer", &sim.LaborOffer{WorkerID: "w", EmployerID: "x", State: sim.LaborStateWorking}, false},
+	}
+	for _, c := range cases {
+		snap := &sim.Snapshot{PublishedAt: at, LaborLedger: map[sim.LaborID]*sim.LaborOffer{1: c.row}}
+		if got := liveLaborBetween(snap, "w", "e"); got != c.want {
+			t.Errorf("%s: liveLaborBetween = %v, want %v", c.name, got, c.want)
+		}
+	}
+	if liveLaborBetween(&sim.Snapshot{}, "w", "e") {
+		t.Error("empty ledger: want false")
+	}
+}
+
+// TestGoldensLaborCuesStepAsideForTheService — LLM-651 cross-scenario
+// invariant. In every scenario whose subject is a wright on the co-present arm
+// of his rounds, the prompt carries no solicit_work affordance; in every
+// scenario whose owner-side cue names a co-present wright, that wright is
+// absent from HireableWorkers (the one signal behind the offer_work cue and
+// tool). Each half must apply to at least one scenario or it is vacuous.
+func TestGoldensLaborCuesStepAsideForTheService(t *testing.T) {
+	wrightArms, ownerArms := 0, 0
+	for _, sc := range perceptionScenarios {
+		snap, actorID, warrants := sc.build()
+		p := Build(snap, actorID, warrants)
+		if wrightOfferingServiceHere(p.WrightRounds) {
+			wrightArms++
+			if p.CanSolicitWork {
+				t.Errorf("scenario %q: wright offering his service co-present, but CanSolicitWork is still true (LLM-651)", sc.name)
+			}
+			if out := combinedPrompt(Render(p, DefaultRenderConfig())); strings.Contains(out, "solicit_work") {
+				t.Errorf("scenario %q: wright offering his service co-present, but the prompt still advertises solicit_work (LLM-651)", sc.name)
+			}
+		}
+		if p.EquipmentService != nil && p.EquipmentService.WrightID != "" {
+			ownerArms++
+			for _, id := range p.HireableWorkers {
+				if id == p.EquipmentService.WrightID {
+					t.Errorf("scenario %q: the equipment cue names the co-present wright, but HireableWorkers still lists him (LLM-651)", sc.name)
+				}
+			}
+		}
+	}
+	if wrightArms == 0 {
+		t.Fatal("no scenario put a wright co-present with a due owner — the wright half is vacuous (LLM-651)")
+	}
+	if ownerArms == 0 {
+		t.Fatal("no scenario put a due owner with a co-present wright — the owner half is vacuous (LLM-651)")
+	}
+}
+
+// TestLaborCuesReturnWhenNothingIsDue — the LLM-651 controls must discriminate:
+// with the mill under the threshold the same pair get the ordinary labor cues,
+// so the suppression above is keyed on the service being due, not on the pair.
+func TestLaborCuesReturnWhenNothingIsDue(t *testing.T) {
+	snap, actorID, warrants := wrightCopresentMillNotDueScenario()
+	p := Build(snap, actorID, warrants)
+	if p.WrightRounds != nil {
+		t.Fatalf("control: mill under threshold, want no rounds cue, got %+v", p.WrightRounds)
+	}
+	if !p.CanSolicitWork {
+		t.Error("control: nothing due, want CanSolicitWork true for the odd-jobbing wright")
+	}
+	snap, actorID, warrants = ownerWrightCopresentMillNotDueScenario()
+	p = Build(snap, actorID, warrants)
+	if p.EquipmentService != nil {
+		t.Fatalf("control: mill under threshold, want no equipment cue, got %+v", p.EquipmentService)
+	}
+	found := false
+	for _, id := range p.HireableWorkers {
+		if id == "lewis" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("control: nothing due, want Lewis hireable, got %v", p.HireableWorkers)
+	}
 }
 
 // TestWrightRoundsSkipsNonBusinessObjects — the rounds pick runs the same

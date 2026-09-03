@@ -39,7 +39,10 @@ type EquipmentServiceView struct {
 	Overdue bool
 	// WrightName is the co-present wright's display name; "" = no wright in
 	// the huddle, so the cue stays a standing fact with no imperative.
+	// WrightID is the same actor by id, for the labor cues that step aside
+	// for him (LLM-651).
 	WrightName string
+	WrightID   sim.ActorID
 	// ServiceItem is the catalog kind the imperative names (resolved by
 	// capability, not hardcoded); Price its retail rate, 0 = unpriced (the
 	// imperative renders without a figure).
@@ -153,12 +156,63 @@ func buildEquipmentService(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *s
 		if ms == nil || m.ID == actorID {
 			continue
 		}
-		if sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
-			v.WrightName = m.DisplayName
-			break
+		if !sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
+			continue
 		}
+		// A wright already on a job for this owner is not here to be paid for
+		// the service — the cue stays the standing fact (LLM-651).
+		if liveLaborBetween(snap, m.ID, actorID) {
+			continue
+		}
+		v.WrightName = m.DisplayName
+		v.WrightID = m.ID
+		break
 	}
 	return v
+}
+
+// liveLaborBetween reports whether worker holds a live labor offer with
+// employer — pending and unexpired, en route, or working. While one stands
+// the two already have a deal on the table, and both service cues yield until
+// it resolves: the owner's pay arm and the wright's rounds step back, so the
+// owner's page never carries "don't pay again by hand" beside "have him see to
+// it", nor the wright's "you are working a job for them" beside "offer your
+// service". A due business keeps until the contract settles (LLM-651,
+// code_review).
+func liveLaborBetween(snap *sim.Snapshot, worker, employer sim.ActorID) bool {
+	for _, o := range snap.LaborLedger {
+		if o == nil || o.WorkerID != worker || o.EmployerID != employer {
+			continue
+		}
+		switch o.State {
+		case sim.LaborStateEnRoute, sim.LaborStateWorking:
+			return true
+		case sim.LaborStatePending:
+			if laborOfferLivePending(o, snap.PublishedAt) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// wrightOfferingServiceHere reports whether the subject is a wright standing
+// with the owner of a business due for his service — the rounds cue is on its
+// co-present arm. The solicit affordance reads this to step aside (LLM-651).
+func wrightOfferingServiceHere(v *WrightRoundsView) bool {
+	return v != nil && v.CoPresent
+}
+
+// withoutActor returns ids with every occurrence of drop removed; nil when
+// nothing is left, so the slice keeps reading as "no one" (LLM-651).
+func withoutActor(ids []sim.ActorID, drop sim.ActorID) []sim.ActorID {
+	var out []sim.ActorID
+	for _, id := range ids {
+		if id != drop {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // renderEquipmentService writes the owner-side "## Your equipment" cue.
@@ -215,6 +269,11 @@ func buildWrightRounds(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.A
 			continue
 		}
 		if !sim.EquipmentServiceDue(obj, threshold) {
+			continue
+		}
+		// An owner the wright already has a job with is off his rounds until
+		// that contract settles — the mirror of the owner-side skip (LLM-651).
+		if liveLaborBetween(snap, actorID, obj.OwnerActorID) {
 			continue
 		}
 		if best == nil || obj.EquipmentUse > best.EquipmentUse ||
