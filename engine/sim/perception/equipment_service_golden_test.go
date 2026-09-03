@@ -222,7 +222,7 @@ func ownerWrightCopresentMillNotDueScenario() (*sim.Snapshot, sim.ActorID, []sim
 }
 
 // wrightOnTheJobForOwner is the LLM-651 live-contract fixture: the odd-job
-// pair, mill due, with Lewis three hours into a four-hour job for Joseph that
+// pair, mill due, with Lewis an hour into a four-hour job for Joseph that
 // was minted before the mill crossed the threshold.
 func wrightOnTheJobForOwner() *sim.Snapshot {
 	snap, actors := oddJobWrightPair(150)
