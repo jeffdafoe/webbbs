@@ -163,6 +163,12 @@ func Build(snap *sim.Snapshot, actorID sim.ActorID, warrants []sim.WarrantMeta, 
 	// (LLM-651).
 	p.EquipmentService = buildEquipmentService(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
 	p.WrightRounds = buildWrightRounds(snap, actorID, actorSnap, p.Surroundings.HuddleMembers)
+	// LLM-651: a wright on a job — working it, or walking to it — is pinned by
+	// the labor coda ("stay with it until it's done"); a rounds steer beside it
+	// is a second movement voice. The rounds resume when the job settles.
+	if p.Laboring != nil || p.LaborEnRoute != nil {
+		p.WrightRounds = nil
+	}
 	// LLM-26: a free worker can solicit work — carries AttrWorker, isn't already
 	// laboring, has no pending offer already out (one bid at a time, the mirror
 	// of SolicitWork's gate), and has someone SOLICITABLE to offer to. The one

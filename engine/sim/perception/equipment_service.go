@@ -156,13 +156,44 @@ func buildEquipmentService(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *s
 		if ms == nil || m.ID == actorID {
 			continue
 		}
-		if sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
-			v.WrightName = m.DisplayName
-			v.WrightID = m.ID
-			break
+		if !sim.ActorIsWright(snap.VillageObjects, ms.WorkStructureID, m.ID) {
+			continue
 		}
+		// A wright already on a job for this owner is not here to be paid for
+		// the service — the cue stays the standing fact (LLM-651).
+		if liveLaborBetween(snap, m.ID, actorID) {
+			continue
+		}
+		v.WrightName = m.DisplayName
+		v.WrightID = m.ID
+		break
 	}
 	return v
+}
+
+// liveLaborBetween reports whether worker holds a live labor offer with
+// employer — pending and unexpired, en route, or working. While one stands
+// the two already have a deal on the table, and both service cues yield until
+// it resolves: the owner's pay arm and the wright's rounds step back, so the
+// owner's page never carries "don't pay again by hand" beside "have him see to
+// it", nor the wright's "you are working a job for them" beside "offer your
+// service". A due business keeps until the contract settles (LLM-651,
+// code_review).
+func liveLaborBetween(snap *sim.Snapshot, worker, employer sim.ActorID) bool {
+	for _, o := range snap.LaborLedger {
+		if o == nil || o.WorkerID != worker || o.EmployerID != employer {
+			continue
+		}
+		switch o.State {
+		case sim.LaborStateEnRoute, sim.LaborStateWorking:
+			return true
+		case sim.LaborStatePending:
+			if laborOfferLivePending(o, snap.PublishedAt) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // wrightOfferingServiceHere reports whether the subject is a wright standing
@@ -238,6 +269,11 @@ func buildWrightRounds(snap *sim.Snapshot, actorID sim.ActorID, actorSnap *sim.A
 			continue
 		}
 		if !sim.EquipmentServiceDue(obj, threshold) {
+			continue
+		}
+		// An owner the wright already has a job with is off his rounds until
+		// that contract settles — the mirror of the owner-side skip (LLM-651).
+		if liveLaborBetween(snap, actorID, obj.OwnerActorID) {
 			continue
 		}
 		if best == nil || obj.EquipmentUse > best.EquipmentUse ||

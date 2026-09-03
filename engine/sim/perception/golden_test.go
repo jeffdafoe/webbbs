@@ -7170,7 +7170,10 @@ func TestActiveWorkerCueOnlyForEmployerWithWorkingOffer(t *testing.T) {
 			sc.name == "seller_employing_own_laboring_worker" ||
 			sc.name == "miller_with_hired_hauler_keeps_water_cue" ||
 			// LLM-622: the owned-source arm of the same miller fixture — same hire.
-			sc.name == "miller_stepping_out_to_his_own_bush"
+			sc.name == "miller_stepping_out_to_his_own_bush" ||
+			// LLM-651: the miller employing the wright on an odd job while the mill
+			// is due — the contract line is what the service pay arm yields to.
+			sc.name == "owner_with_wright_on_the_job"
 		if has := strings.Contains(got, marker); has != want {
 			t.Errorf("scenario %q: active-worker cue present=%v, want %v", sc.name, has, want)
 		}
