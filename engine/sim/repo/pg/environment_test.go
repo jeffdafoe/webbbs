@@ -36,6 +36,7 @@ func newMockPoolE(t *testing.T) (pgxmock.PgxPoolIface, *EnvironmentRepo) {
 var worldStateColumns = []string{
 	"phase", "last_transition_at", "last_rotation_at",
 	"weather", "atmosphere", "last_needs_tick_at",
+	"town_chest_coins",
 }
 
 // programWorldStateRow programs a single world_state row scan with
@@ -46,10 +47,22 @@ func programWorldStateRow(mock pgxmock.PgxPoolIface, phase sim.Phase,
 	weather, atmosphere string,
 	lastNeedsTickAt *time.Time,
 ) {
+	programWorldStateRowWithChest(mock, phase, lastTransitionAt, lastRotationAt,
+		weather, atmosphere, lastNeedsTickAt, 0)
+}
+
+// programWorldStateRowWithChest is programWorldStateRow with an explicit
+// town_chest_coins value (LLM-652); the plain helper reads an empty chest.
+func programWorldStateRowWithChest(mock pgxmock.PgxPoolIface, phase sim.Phase,
+	lastTransitionAt, lastRotationAt time.Time,
+	weather, atmosphere string,
+	lastNeedsTickAt *time.Time,
+	townChest int,
+) {
 	mock.ExpectQuery(`SELECT[\s\S]+FROM world_state[\s\S]+WHERE id = 1`).
 		WillReturnRows(pgxmock.NewRows(worldStateColumns).
 			AddRow(string(phase), lastTransitionAt, lastRotationAt,
-				weather, atmosphere, lastNeedsTickAt))
+				weather, atmosphere, lastNeedsTickAt, townChest))
 }
 
 // programSettingsRows programs the setting kv query returning the
@@ -326,10 +339,11 @@ func TestEnvironmentRepo_SaveSnapshot_HappyPath(t *testing.T) {
 		LastNeedsTickAt:  needs,
 		Weather:          "clear",
 		Atmosphere:       "morning fog",
+		TownChest:        69,
 	}
 
 	mock.ExpectExec(`INSERT INTO world_state`).
-		WithArgs(string(sim.PhaseDay), at, rotation, "clear", "morning fog", needs).
+		WithArgs(string(sim.PhaseDay), at, rotation, "clear", "morning fog", needs, 69).
 		WillReturnResult(pgconn.NewCommandTag("INSERT 0 1"))
 
 	if err := repo.SaveSnapshot(context.Background(), tx, env, sim.PhaseDay); err != nil {
@@ -430,7 +444,7 @@ func TestEnvironmentRepo_SaveSnapshot_ZeroLastNeedsTick_NULL(t *testing.T) {
 	}
 
 	mock.ExpectExec(`INSERT INTO world_state`).
-		WithArgs(string(sim.PhaseDay), at, at, "", "", nil /*last_needs_tick_at NULL*/).
+		WithArgs(string(sim.PhaseDay), at, at, "", "", nil /*last_needs_tick_at NULL*/, 0).
 		WillReturnResult(pgconn.NewCommandTag("INSERT 0 1"))
 
 	if err := repo.SaveSnapshot(context.Background(), tx, env, sim.PhaseDay); err != nil {
@@ -718,3 +732,58 @@ var _ sim.EnvironmentRepo = (*EnvironmentRepo)(nil)
 // via fakeEnvironment{err: errNotImpl}; this guard is paranoia
 // against future imports moving around).
 var _ = errors.Is
+
+// --- Load: town chest (LLM-652) --------------------------------------------
+
+// TestEnvironmentRepo_Load_TownChest — the estate rate's chest rides the
+// world_state singleton and comes back on the environment. It is the one piece
+// of state the levy adds that MUST survive a restart: the coin has left the
+// purses, so a chest that reloaded as zero would have destroyed it.
+func TestEnvironmentRepo_Load_TownChest(t *testing.T) {
+	mock, repo := newMockPoolE(t)
+
+	at := time.Date(2026, 9, 9, 2, 0, 0, 0, time.UTC)
+	programWorldStateRowWithChest(mock, sim.PhaseNight, at, at, "", "", nil, 69)
+	programSettingsRows(mock, map[string]string{
+		"estate_rate_floor":       "150",
+		"estate_rate_pct_per_day": "10",
+	})
+
+	env, _, settings, err := repo.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if env.TownChest != 69 {
+		t.Errorf("TownChest = %d, want 69", env.TownChest)
+	}
+	if settings.EstateRateFloor != 150 || settings.EstateRatePctPerDay != 10 {
+		t.Errorf("estate rate settings = floor %d / pct %d, want 150 / 10",
+			settings.EstateRateFloor, settings.EstateRatePctPerDay)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("expectations: %v", err)
+	}
+}
+
+// TestEnvironmentRepo_Load_EstateRateDefaults — with no setting rows the two
+// knobs fall back to the compiled defaults, so a deploy needs no seed rows.
+func TestEnvironmentRepo_Load_EstateRateDefaults(t *testing.T) {
+	mock, repo := newMockPoolE(t)
+
+	at := time.Date(2026, 9, 9, 2, 0, 0, 0, time.UTC)
+	programWorldStateRow(mock, sim.PhaseDay, at, at, "", "", nil)
+	programSettingsRows(mock, map[string]string{})
+
+	env, _, settings, err := repo.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if env.TownChest != 0 {
+		t.Errorf("TownChest = %d on an empty chest, want 0", env.TownChest)
+	}
+	if settings.EstateRateFloor != sim.DefaultEstateRateFloor || settings.EstateRatePctPerDay != sim.DefaultEstateRatePctPerDay {
+		t.Errorf("estate rate settings = floor %d / pct %d, want the defaults %d / %d",
+			settings.EstateRateFloor, settings.EstateRatePctPerDay,
+			sim.DefaultEstateRateFloor, sim.DefaultEstateRatePctPerDay)
+	}
+}

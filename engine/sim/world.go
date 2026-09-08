@@ -33,6 +33,7 @@ type WorldEnvironment struct {
 	LastPhaseFlipAt         time.Time // last REAL day↔night flip (From != To, UTC). Feeds the public world DTO's last_transition_at, which the client reads as "when the current phase began" to position its sunset curve — a redundant force-phase must NOT re-baseline that or a resyncing client jumps toward the opposite pole (LLM-578 code_review). NOT persisted: boot-initialized from LastTransitionAt in LoadWorld, which is the real flip instant in every case except a redundant force with no flip after it before shutdown.
 	LastRotationAt          time.Time // last daily asset rotation (UTC). Durable — persisted in world_state.last_rotation_at.
 	LastNeedsTickAt         time.Time // last hourly needs increment (UTC, hour-truncated). Durable — persisted in world_state.last_needs_tick_at.
+	TownChest               int       // coin the estate rate (LLM-652) has taken out of purses and not yet spent back. Durable — persisted in world_state.town_chest_coins: the coin has left the purses, so losing it on restart would destroy it.
 }
 
 // WorldSettings carries world-level config — checkpoint cadence, phase
@@ -240,6 +241,15 @@ type WorldSettings struct {
 	// FarmUpkeepCoinsPerShovel==0) but does NOT forgive outstanding arrears.
 	TownRateCoinsPerDay int
 	TownRateMaxOwed     int
+
+	// Estate rate (LLM-652). Once a game-day every resident NPC pays
+	// EstateRatePctPerDay percent of the coin held above EstateRateFloor into the
+	// town chest (WorldEnvironment.TownChest), assessed on the daily rotation
+	// boundary (assessEstateRate). Unlike the day's rate the ENGINE moves this
+	// coin — see estate_rate.go for why. Live-tunable (umbilical);
+	// EstateRatePctPerDay<=0 disables the levy (the off-switch).
+	EstateRateFloor     int
+	EstateRatePctPerDay int
 
 	// Reactor evaluator tunables (Phase 2 PR 2). Settings-driven gross
 	// gates — no per-call cost calculation; llm-memory-api's per-VA dollar

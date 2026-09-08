@@ -15,6 +15,7 @@ import (
 func TestHandleConfig_Admin(t *testing.T) {
 	w := seededWorld(t)
 	seedAdmin(t, w, "admin-tester", "tester")
+	w.Environment.TownChest = 69 // LLM-652: the chest rides the config read
 	srv := NewServer(w, okAuth{})
 
 	rec := get(t, srv, "/api/village/config")
@@ -24,6 +25,9 @@ func TestHandleConfig_Admin(t *testing.T) {
 	var cfg WorldConfigDTO
 	if err := json.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+	if cfg.TownChestCoins != 69 {
+		t.Errorf("town_chest_coins = %d, want 69", cfg.TownChestCoins)
 	}
 }
 

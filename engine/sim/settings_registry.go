@@ -173,6 +173,24 @@ func intSetting(key string, effect SettingEffect, field func(*WorldSettings) *in
 	}
 }
 
+// pctSetting is intSetting bounded to a whole percentage, 0–100 inclusive. For a
+// knob that scales a quantity by pct/100, a value above 100 is not a bigger
+// effect but a broken one — the estate rate would debit a purse below its own
+// floor — so the setter refuses it rather than leaving the consumer to clamp
+// (LLM-652, code_review).
+func pctSetting(key string, effect SettingEffect, field func(*WorldSettings) *int) SettingSpec {
+	spec := intSetting(key, effect, field)
+	setInt := spec.set
+	spec.set = func(ws *WorldSettings, raw string) error {
+		n, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err == nil && n > 100 {
+			return fmt.Errorf("%s must be between 0 and 100, got %q", key, raw)
+		}
+		return setInt(ws, raw)
+	}
+	return spec
+}
+
 // durationSetting stores and reports the SCALAR (e.g. 90 for
 // max_warrant_age_seconds), matching the setting table. The unit comes from the
 // key suffix, so a key without one is a programming error and is rejected at

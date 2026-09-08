@@ -80,6 +80,16 @@ func NewCoinRecordsRepo(pool Pool) *CoinRecordsRepo {
 // moved on those. actor_id NOT NULL excludes the engine-authored rows that carry no
 // payer.
 //
+// NOT (payload ? 'estate_rate') excludes the estate-rate assessments (LLM-652):
+// coin the engine moved from a purse into the town chest. The chest is not an
+// actor, so the row has no counterparty to pair with, and letting it through would
+// only count it as an unresolved counterparty at boot — a bucket the header
+// reserves for departed visitors. Keyed on the marker's PRESENCE (the jsonb `?`
+// operator), not its text value, so a marked row whose value is null is still an
+// assessment and never a peer payment. The marker is engine-owned (estate_rate.go
+// writes it and nothing else does), the same footing as ledger_id and
+// lodging_grant.
+//
 // No index is needed or added: the scan is bounded by the occurred_at window and
 // runs exactly once, at boot.
 const loadPaymentsSinceSQL = `
@@ -98,6 +108,7 @@ SELECT action_type,
  WHERE action_type IN ('paid', 'labored')
    AND result = 'ok'
    AND actor_id IS NOT NULL
+   AND NOT (payload ? 'estate_rate')
    AND occurred_at >= $1
  ORDER BY occurred_at`
 
