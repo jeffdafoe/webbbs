@@ -84,6 +84,7 @@ func buildWorldConfig(world *sim.World) WorldConfigDTO {
 		AgentTicksPaused: st.AgentTicksPaused,
 		ZoomMinAdmin:     st.ZoomMinAdmin,
 		ZoomMinRegular:   st.ZoomMinRegular,
+		TownChestCoins:   env.TownChest,
 	}
 
 	loc := st.Location

@@ -156,6 +156,10 @@ func buildSettingRegistry() []SettingSpec {
 		intSetting("town_rate_coins_per_day", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.TownRateCoinsPerDay }),
 		intSetting("town_rate_max_owed", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.TownRateMaxOwed }),
 
+		// --- estate rate (LLM-652) ------------------------------------------
+		intSetting("estate_rate_floor", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.EstateRateFloor }),
+		intSetting("estate_rate_pct_per_day", SettingEffectImmediate, func(s *WorldSettings) *int { return &s.EstateRatePctPerDay }),
+
 		// --- cold exposure + hearth (LLM-412) ------------------------------
 		// cold.go reads every one of these off w.Settings inside the per-minute
 		// rate lookup.

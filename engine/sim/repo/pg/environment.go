@@ -57,7 +57,8 @@ func NewEnvironmentRepo(pool Pool) *EnvironmentRepo {
 // loadWorldStateSQL reads the singleton row. id=1 is enforced by the
 // world_state_singleton CHECK constraint.
 const loadWorldStateSQL = `
-SELECT phase, last_transition_at, last_rotation_at, weather, atmosphere, last_needs_tick_at
+SELECT phase, last_transition_at, last_rotation_at, weather, atmosphere, last_needs_tick_at,
+       town_chest_coins
   FROM world_state
  WHERE id = 1`
 
@@ -78,9 +79,9 @@ ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`
 const upsertWorldStateSQL = `
 INSERT INTO world_state (
     id, phase, last_transition_at, last_rotation_at,
-    weather, atmosphere, last_needs_tick_at
+    weather, atmosphere, last_needs_tick_at, town_chest_coins
 ) VALUES (
-    1, $1, $2, $3, $4, $5, $6
+    1, $1, $2, $3, $4, $5, $6, $7
 )
 ON CONFLICT (id) DO UPDATE SET
     phase              = EXCLUDED.phase,
@@ -88,7 +89,8 @@ ON CONFLICT (id) DO UPDATE SET
     last_rotation_at   = EXCLUDED.last_rotation_at,
     weather            = EXCLUDED.weather,
     atmosphere         = EXCLUDED.atmosphere,
-    last_needs_tick_at = EXCLUDED.last_needs_tick_at`
+    last_needs_tick_at = EXCLUDED.last_needs_tick_at,
+    town_chest_coins   = EXCLUDED.town_chest_coins`
 
 // Load reads the world_state singleton + every setting row, returning
 // a fully populated (env, phase, settings) triple. Missing setting rows
@@ -122,10 +124,12 @@ func (r *EnvironmentRepo) loadWorldState(ctx context.Context) (sim.WorldEnvironm
 		lastRotationAt      time.Time
 		weather, atmosphere string
 		lastNeedsTickAt     *time.Time
+		townChest           int
 	)
 	err := r.pool.QueryRow(ctx, loadWorldStateSQL).Scan(
 		&phase, &lastTransitionAt, &lastRotationAt,
 		&weather, &atmosphere, &lastNeedsTickAt,
+		&townChest,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -140,6 +144,7 @@ func (r *EnvironmentRepo) loadWorldState(ctx context.Context) (sim.WorldEnvironm
 		LastRotationAt:   lastRotationAt,
 		Weather:          weather,
 		Atmosphere:       atmosphere,
+		TownChest:        townChest,
 	}
 	if lastNeedsTickAt != nil {
 		env.LastNeedsTickAt = *lastNeedsTickAt
@@ -237,6 +242,10 @@ func buildSettings(values map[string]string) sim.WorldSettings {
 	// Town rate (LLM-557).
 	s.TownRateCoinsPerDay = parseIntSetting(values, "town_rate_coins_per_day", sim.DefaultTownRateCoinsPerDay)
 	s.TownRateMaxOwed = parseIntSetting(values, "town_rate_max_owed", sim.DefaultTownRateMaxOwed)
+
+	// Estate rate (LLM-652).
+	s.EstateRateFloor = parseIntSetting(values, "estate_rate_floor", sim.DefaultEstateRateFloor)
+	s.EstateRatePctPerDay = parseIntSetting(values, "estate_rate_pct_per_day", sim.DefaultEstateRatePctPerDay)
 
 	// Cold exposure + hearth (LLM-412). Every cold knob is a per-minute rate, a
 	// multiplier, or a percentage — all of which must be >= 0 (a negative recovery
@@ -647,6 +656,7 @@ func (r *EnvironmentRepo) SaveSnapshot(ctx context.Context, tx sim.Tx, env sim.W
 		env.Weather,          // $4 weather
 		env.Atmosphere,       // $5 atmosphere
 		lastNeedsArg,         // $6 last_needs_tick_at (nullable)
+		env.TownChest,        // $7 town_chest_coins (LLM-652)
 	); err != nil {
 		return fmt.Errorf("pg environment SaveSnapshot: upsert: %w", err)
 	}

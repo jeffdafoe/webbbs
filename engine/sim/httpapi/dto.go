@@ -99,6 +99,10 @@ type WorldConfigDTO struct {
 	AgentTicksPaused    bool      `json:"agent_ticks_paused"`
 	ZoomMinAdmin        float64   `json:"zoom_min_admin"`
 	ZoomMinRegular      float64   `json:"zoom_min_regular"`
+	// TownChestCoins is the estate rate's chest (LLM-652): coin the daily
+	// assessment has taken out of resident purses and not yet spent back. Read
+	// side only — the coin sweep needs it to check Σ purses + chest.
+	TownChestCoins int `json:"town_chest_coins"`
 }
 
 // AgentDTO is one actor in the GET /api/village/agents response.
