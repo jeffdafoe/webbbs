@@ -80,9 +80,18 @@ const (
 // the levy (returns 0 — the off-switch); a balance at or below the floor owes
 // nothing. Pure, so the assessment and anything reasoning about the rate read the
 // same rule.
+//
+// The due never exceeds the excess over the floor. The setter refuses a pct above
+// 100 (pctSetting), but the loader does not (parseIntSetting), so a malformed
+// persisted row could still reach here — and a levy that debits a purse below its
+// own floor is the one outcome the floor exists to rule out. Clamping the pct also
+// bounds the multiplication, so no value can overflow it into a negative due.
 func EstateRateDue(coins, floor, pct int) int {
 	if pct <= 0 || coins <= floor {
 		return 0
+	}
+	if pct > 100 {
+		pct = 100
 	}
 	return (coins - floor) * pct / 100
 }

@@ -1,6 +1,7 @@
 package sim
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 )
@@ -28,6 +29,10 @@ func TestEstateRateDue(t *testing.T) {
 		{"negative pct disables", 864, 100, -5, 0},
 		{"floor 0 taxes from the first coin", 200, 0, 5, 10},
 		{"a higher rate", 864, 100, 10, 76},
+		// A percentage above 100 is refused by the setter but could still arrive
+		// from a malformed persisted row; it must never debit below the floor.
+		{"pct above 100 is clamped to the excess", 200, 100, 101, 100},
+		{"an absurd pct still takes only the excess", 200, 100, 1_000_000, 100},
 		{"empty purse", 0, 100, 5, 0},
 		{"a negative balance owes nothing", -5, 100, 5, 0},
 	}
@@ -79,7 +84,8 @@ func totalCoins(w *World) int {
 
 func TestAssessEstateRate_WhoPaysAndConservation(t *testing.T) {
 	w := estateRateWorld()
-	before := totalCoins(w)
+	w.Environment.TownChest = 300 // a chest already holding earlier days' rate
+	before := totalCoins(w) + w.Environment.TownChest
 	now := time.Unix(1_700_000_000, 0).UTC()
 
 	assessEstateRate(w, now)
@@ -98,8 +104,8 @@ func TestAssessEstateRate_WhoPaysAndConservation(t *testing.T) {
 			t.Errorf("%s: coins = %d after assessment, want %d", id, got, coins)
 		}
 	}
-	if w.Environment.TownChest != 38+19 {
-		t.Errorf("TownChest = %d, want %d — the chest must hold exactly what left the purses", w.Environment.TownChest, 38+19)
+	if w.Environment.TownChest != 300+38+19 {
+		t.Errorf("TownChest = %d, want %d — the chest must gain exactly what left the purses", w.Environment.TownChest, 300+38+19)
 	}
 	if after := totalCoins(w) + w.Environment.TownChest; after != before {
 		t.Errorf("Σ purses + chest = %d after assessment, want %d — the levy must be coin-neutral", after, before)
@@ -237,5 +243,72 @@ func TestEstateRateAssessable(t *testing.T) {
 	bare := &Actor{ID: "vstr-deadbeef", Kind: KindNPCShared, Coins: 500}
 	if estateRateAssessable(bare) {
 		t.Error("a vstr- id with no VisitorState is assessable")
+	}
+}
+
+// A setter-side guard for the same invariant: the registry refuses a percentage
+// above 100 outright, so a live tune cannot put the levy into the state
+// EstateRateDue clamps against.
+func TestEstateRatePctSettingIsBounded(t *testing.T) {
+	ws := WorldSettings{}
+	if _, err := ApplySetting(&ws, "estate_rate_pct_per_day", "101"); err == nil {
+		t.Error("ApplySetting accepted estate_rate_pct_per_day=101")
+	}
+	if _, err := ApplySetting(&ws, "estate_rate_pct_per_day", "-1"); err == nil {
+		t.Error("ApplySetting accepted estate_rate_pct_per_day=-1")
+	}
+	for _, ok := range []string{"0", "5", "100"} {
+		if _, err := ApplySetting(&ws, "estate_rate_pct_per_day", ok); err != nil {
+			t.Errorf("ApplySetting rejected estate_rate_pct_per_day=%s: %v", ok, err)
+		}
+	}
+	if ws.EstateRatePctPerDay != 100 {
+		t.Errorf("EstateRatePctPerDay = %d after the last accepted write, want 100", ws.EstateRatePctPerDay)
+	}
+}
+
+// A positive-balance actor never ends an assessment below the floor, whatever the
+// (possibly malformed) percentage — the invariant the floor exists for.
+func TestAssessEstateRate_NeverDebitsBelowTheFloor(t *testing.T) {
+	for _, pct := range []int{1, 5, 50, 100, 101, 5000} {
+		w := estateRateWorld()
+		w.Settings.EstateRatePctPerDay = pct
+		before := map[ActorID]int{}
+		for id, a := range w.Actors {
+			before[id] = a.Coins
+		}
+		assessEstateRate(w, time.Unix(1_700_000_000, 0).UTC())
+		for id, a := range w.Actors {
+			floor := w.Settings.EstateRateFloor
+			switch {
+			case before[id] <= floor && a.Coins != before[id]:
+				t.Errorf("pct %d: %s started at %d (at or under the floor) and was debited to %d", pct, id, before[id], a.Coins)
+			case before[id] > floor && a.Coins < floor:
+				t.Errorf("pct %d: %s ended at %d coins, below the floor %d", pct, id, a.Coins, floor)
+			}
+		}
+	}
+}
+
+// The umbilical force-rotate calls ApplyDailyRotation directly; the levy is bound
+// to the boundary crossing in checkAndRotate instead, so a forced rotation must
+// never assess anyone (the same seam the farm-upkeep and day's-rate passes use).
+func TestApplyDailyRotation_DoesNotAssessEstateRate(t *testing.T) {
+	w := estateRateWorld()
+	w.Environment.TownChest = 11
+	before := map[ActorID]int{}
+	for id, a := range w.Actors {
+		before[id] = a.Coins
+	}
+	if _, err := ApplyDailyRotation(RotationTickInputs{Now: time.Unix(1_700_000_000, 0).UTC(), Rand: rand.New(rand.NewSource(1))}, RotationScope{}).Fn(w); err != nil {
+		t.Fatalf("ApplyDailyRotation: %v", err)
+	}
+	if w.Environment.TownChest != 11 {
+		t.Errorf("TownChest = %d after a bare rotation, want 11 — the rotation itself must not levy", w.Environment.TownChest)
+	}
+	for id, a := range w.Actors {
+		if a.Coins != before[id] {
+			t.Errorf("%s: coins %d → %d across a bare rotation", id, before[id], a.Coins)
+		}
 	}
 }

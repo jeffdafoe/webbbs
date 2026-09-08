@@ -8,8 +8,8 @@ import (
 	"github.com/jeffdafoe/llm-memory-plugin-salem-1692/engine/sim"
 )
 
-// estate_rate_integration_test.go — real-pg coverage for the two durable edges of
-// the estate rate (LLM-652). Run against embedded Postgres with the prod baseline +
+// estate_rate_integration_test.go — real-pg coverage for the durable edges of the
+// estate rate (LLM-652). Run against embedded Postgres with the prod baseline +
 // post-baseline migrations applied (so the LLM-652 migration itself is under
 // test); skipped under `go test -short`.
 
@@ -51,50 +51,83 @@ func TestIntegration_EstateRate_TownChestSurvivesCheckpoint(t *testing.T) {
 	}
 }
 
-// An estate-rate row is a `paid` row with result ok and a payer, which is exactly
-// the shape the coin-record seed selects — only the estate_rate marker keeps it
-// out. The chest is not an actor, so a row that got through could never resolve to
-// a pair; it would only be miscounted as a departed visitor at boot.
-func TestCoinRecordsRepo_Integration_ExcludesEstateRateRows(t *testing.T) {
+// One real assessment through the production sink: the durable row the engine
+// writes lands in agent_action_log as result 'ok' with the marker, the coin-record
+// seed leaves it out, and an ordinary purchase from the same payer still seeds. An
+// estate-rate row is a `paid` row with result ok and a payer — exactly the shape
+// the seed selects — so only the marker keeps it out; the chest is not an actor,
+// and a row that got through could never resolve to a pair.
+func TestIntegration_EstateRate_DurableRowThroughTheSinkIsExcludedFromTheSeed(t *testing.T) {
 	f := newFixture(t)
-	ctx := context.Background()
+	ctx := t.Context()
+	repo := NewRepository(f.Pool)
 
 	const (
 		payerID = "44444444-4444-4444-4444-444444444444"
 		otherID = "55555555-5555-5555-5555-555555555555"
 	)
-	for _, a := range []struct{ id, name string }{
-		{payerID, "Joseph Scott"},
-		{otherID, "Moses James"},
-	} {
-		if _, err := f.Pool.Exec(ctx,
-			`INSERT INTO actor (id, display_name, current_x, current_y) VALUES ($1, $2, 0, 0)`,
-			a.id, a.name,
-		); err != nil {
-			t.Fatalf("seed actor %s: %v", a.name, err)
-		}
+	w := checkpointableWorld(repo)
+	w.Settings.EstateRateFloor = 100
+	w.Settings.EstateRatePctPerDay = 5
+	w.Actors = map[sim.ActorID]*sim.Actor{
+		payerID: {ID: payerID, DisplayName: "Joseph Scott", Kind: sim.KindNPCShared, LLMAgent: sim.VendorAgentName, State: sim.StateIdle, Coins: 864, Inventory: map[sim.ItemKind]int{}},
+		otherID: {ID: otherID, DisplayName: "Moses James", Kind: sim.KindNPCShared, LLMAgent: sim.VendorAgentName, State: sim.StateIdle, Coins: 47, Inventory: map[sim.ItemKind]int{}},
+	}
+	// Persist the actors first: agent_action_log.actor_id is a FK to actor(id).
+	if err := SaveWorld(ctx, repo, w.BuildCheckpointSnapshot()); err != nil {
+		t.Fatalf("SaveWorld: %v", err)
 	}
 
-	base := time.Now().UTC().Truncate(time.Microsecond)
-	insert := func(at time.Time, source, payload string) {
-		t.Helper()
-		if _, err := f.Pool.Exec(ctx,
-			`INSERT INTO agent_action_log (actor_id, occurred_at, source, action_type, payload, result, speaker_name)
-			 VALUES ($1, $2, $3, 'paid', $4::jsonb, 'ok', 'Joseph Scott')`,
-			payerID, at, source, payload,
-		); err != nil {
-			t.Fatalf("insert: %v", err)
-		}
+	sink := NewActionLogRepo(f.Pool)
+	w.SetActionLogSink(sink)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := sim.ApplyEstateRate(now).Fn(w); err != nil {
+		t.Fatalf("ApplyEstateRate: %v", err)
+	}
+	// An ordinary purchase beside it, the shape handlePayResolvedActionLog writes.
+	w.AppendActionLogDurable(sim.DurableActionLogRow{
+		ActorID: payerID, OccurredAt: now.Add(time.Minute), ActionType: sim.ActionTypePaid,
+		Payload:     map[string]any{"recipient": "Moses James", "recipient_actor_id": otherID, "amount": 4, "ledger_id": 8123},
+		SpeakerName: "Joseph Scott", Source: "agent",
+	})
+	// Run drains what is buffered and returns once ctx is cancelled — a cancelled
+	// ctx makes it a synchronous flush.
+	drained, cancel := context.WithCancel(ctx)
+	cancel()
+	sink.Run(drained)
+
+	if w.Actors[payerID].Coins != 864-38 || w.Environment.TownChest != 38 {
+		t.Fatalf("assessment: Joseph %d, chest %d; want 826 / 38", w.Actors[payerID].Coins, w.Environment.TownChest)
 	}
 
-	// The exact payload assessEstateRate writes.
-	insert(base.Add(-2*time.Hour), "engine",
-		`{"recipient": "the town", "amount": 38, "for": "the rate on your estate", "estate_rate": true, "chest_after": 38}`)
-	// An ordinary purchase from the same payer, which must still come back.
-	insert(base.Add(-time.Hour), "agent",
-		`{"recipient": "Moses James", "recipient_actor_id": "`+otherID+`", "amount": 4, "ledger_id": 8123}`)
+	var (
+		result, source, recipient, forText, marker, amount string
+		hasRecipientID                                     bool
+	)
+	if err := f.Pool.QueryRow(ctx, `
+		SELECT result, source, payload->>'recipient', payload->>'for', payload->>'estate_rate',
+		       payload->>'amount', payload ? 'recipient_actor_id'
+		  FROM agent_action_log
+		 WHERE actor_id = $1 AND payload ? 'estate_rate'`, payerID,
+	).Scan(&result, &source, &recipient, &forText, &marker, &amount, &hasRecipientID); err != nil {
+		t.Fatalf("read the assessment row: %v", err)
+	}
+	if result != "ok" || source != "engine" || recipient != "the town" || forText != "the rate on your estate" || marker != "true" || amount != "38" || hasRecipientID {
+		t.Errorf("assessment row = result %q source %q recipient %q for %q marker %q amount %q recipient_id %v",
+			result, source, recipient, forText, marker, amount, hasRecipientID)
+	}
 
-	rows, err := NewCoinRecordsRepo(f.Pool).LoadPaymentsSince(ctx, base.Add(-3*time.Hour))
+	// A marked row whose value is null is still an assessment — the exclusion keys on
+	// presence, not text.
+	if _, err := f.Pool.Exec(ctx,
+		`INSERT INTO agent_action_log (actor_id, occurred_at, source, action_type, payload, result, speaker_name)
+		 VALUES ($1, $2, 'engine', 'paid', '{"recipient": "the town", "amount": 9, "estate_rate": null}'::jsonb, 'ok', 'Joseph Scott')`,
+		payerID, now.Add(2*time.Minute),
+	); err != nil {
+		t.Fatalf("insert null-marker row: %v", err)
+	}
+
+	rows, err := NewCoinRecordsRepo(f.Pool).LoadPaymentsSince(ctx, now.Add(-time.Hour))
 	if err != nil {
 		t.Fatalf("LoadPaymentsSince: %v", err)
 	}
@@ -104,5 +137,4 @@ func TestCoinRecordsRepo_Integration_ExcludesEstateRateRows(t *testing.T) {
 	if rows[0].Amount != "4" || rows[0].CounterpartyActorID != otherID {
 		t.Errorf("surviving row = %+v, want the 4-coin purchase from Moses", rows[0])
 	}
-	_ = sim.ActorID("") // keep the sim import honest if the assertions above change shape
 }
